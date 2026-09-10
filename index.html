@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calculadora de frente de parrilla</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#24272B">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>
+  :root{
+    --bg: #24272B;
+    --panel: #2E3237;
+    --panel-2: #383D43;
+    --line: #454B52;
+    --text: #EDEAE3;
+    --text-dim: #A7ADB4;
+    --ember: #D9762B;
+    --ember-dim: #8C5527;
+    --steel: #5B7A93;
+    --ok: #7BAE7F;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+  }
+  .wrap {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 18px 14px 110px;
+  }
+  header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    border-bottom: 2px solid var(--ember);
+    padding-bottom: 10px;
+    margin-bottom: 18px;
+  }
+  header h1 {
+    font-family: 'Oswald', 'Segoe UI', sans-serif;
+    font-size: 1.3rem;
+    letter-spacing: 0.02em;
+    margin: 0;
+    text-transform: uppercase;
+  }
+  header span {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+  }
+  .section {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    margin-bottom: 14px;
+    overflow: hidden;
+  }
+  .section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: var(--panel-2);
+    cursor: pointer;
+    user-select: none;
+  }
+  .section-head h2 {
+    font-family: 'Oswald', 'Segoe UI', sans-serif;
+    font-size: 0.85rem;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    margin: 0;
+    color: var(--text-dim);
+  }
+  .chevron { transition: transform 0.15s ease; color: var(--text-dim); font-size: 0.8rem; }
+  .chevron.open { transform: rotate(90deg); }
+  .section-body {
+    padding: 12px 14px 14px;
+    display: none;
+  }
+  .section-body.open { display: block; }
+  .valores-grid {
+    display: grid;
+    grid-template-columns: 1fr 100px;
+    gap: 8px 10px;
+    align-items: center;
+  }
+  .valores-grid label {
+    font-size: 0.82rem;
+    color: var(--text-dim);
+  }
+  .valores-grid input {
+    width: 100%;
+  }
+  .subgroup-title {
+    grid-column: 1 / -1;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ember);
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--line);
+  }
+  .subgroup-title:first-child { border-top: none; margin-top: 0; padding-top: 0; }
+
+  input[type=number], input[type=text] {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    color: var(--text);
+    padding: 7px 8px;
+    border-radius: 3px;
+    font-size: 0.9rem;
+  }
+  input[type=number]:focus, input[type=text]:focus {
+    outline: none;
+    border-color: var(--ember);
+  }
+
+  .frente-card {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--steel);
+    border-radius: 3px;
+    padding: 12px;
+    margin-bottom: 10px;
+  }
+  .frente-top {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+    align-items: center;
+  }
+  .frente-top input[type=text] {
+    flex: 1;
+  }
+  .btn-del {
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--text-dim);
+    border-radius: 3px;
+    width: 30px;
+    height: 30px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .btn-del:active { border-color: var(--ember); color: var(--ember); }
+
+  .medidas-row, .cant-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .field label {
+    display: block;
+    font-size: 0.68rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin-bottom: 3px;
+  }
+  .field input { width: 100%; }
+
+  .frente-total {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--line);
+  }
+  .frente-total .label { font-size: 0.75rem; color: var(--text-dim); }
+  .frente-total .val { font-family: 'Oswald', sans-serif; font-size: 1.05rem; color: var(--ember); }
+
+  .btn-add {
+    display: block;
+    width: 100%;
+    background: transparent;
+    border: 1px dashed var(--steel);
+    color: var(--steel);
+    padding: 10px;
+    border-radius: 3px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+  .btn-add:active { border-color: var(--ember); color: var(--ember); }
+
+  .total-bar {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    background: var(--panel-2);
+    border-top: 2px solid var(--ember);
+    padding: 12px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .total-bar .lbl {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .total-bar .amt {
+    font-family: 'Oswald', sans-serif;
+    font-size: 1.5rem;
+    color: var(--ember);
+  }
+  .desglose {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    margin-top: 8px;
+    line-height: 1.7;
+    border-top: 1px dashed var(--line);
+    padding-top: 8px;
+  }
+  .desglose b { color: var(--text); }
+  .desglose-toggle {
+    font-size: 0.7rem;
+    color: var(--steel);
+    margin-top: 8px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .desglose-toggle:active { color: var(--ember); }
+
+  .cliente-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .cliente-grid .field input { width: 100%; }
+
+  .btn-guardar {
+    display: block;
+    width: 100%;
+    background: var(--ember-dim);
+    border: 1px solid var(--ember);
+    color: var(--text);
+    padding: 10px;
+    border-radius: 3px;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .btn-guardar:active { background: var(--ember); }
+
+  .hist-msg {
+    font-size: 0.72rem;
+    color: var(--ok);
+    margin-top: 8px;
+    min-height: 1em;
+  }
+
+  .hist-item {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--ember-dim);
+    border-radius: 3px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+  .hist-item .info { flex: 1; min-width: 0; }
+  .hist-item .cliente { font-size: 0.88rem; color: var(--text); }
+  .hist-item .meta { font-size: 0.68rem; color: var(--text-dim); margin-top: 2px; }
+  .hist-item .total { font-family: 'Oswald', sans-serif; font-size: 0.95rem; color: var(--ember); white-space: nowrap; }
+  .hist-empty { font-size: 0.78rem; color: var(--text-dim); padding: 8px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Frente de parrilla</h1>
+    <span>calculadora</span>
+  </header>
+
+  <div class="section" id="sec-valores">
+    <div class="section-head" onclick="toggleSection('sec-valores')">
+      <h2>Valores base</h2>
+      <span class="chevron" id="chev-sec-valores">▶</span>
+    </div>
+    <div class="section-body" id="body-sec-valores">
+      <div class="valores-grid">
+        <div class="subgroup-title">Por m²</div>
+        <label>Valor 1</label><input type="number" id="v_valor1" value="15000">
+        <label>Valor 2</label><input type="number" id="v_valor2" value="3000">
+
+        <div class="subgroup-title">Por unidad</div>
+        <label>Bisagra</label><input type="number" id="v_bisagra" value="20000">
+        <label>Kit</label><input type="number" id="v_kit" value="170000">
+        <label>Fogonero</label><input type="number" id="v_fogonero" value="250000">
+        <label>Cubiertero</label><input type="number" id="v_cubiertero" value="180000">
+
+        <div class="subgroup-title">Fijos (por frente)</div>
+        <label>Comisión</label><input type="number" id="v_comision" value="70000">
+        <label>Logística</label><input type="number" id="v_logistica" value="80000">
+        <label>Mano de obra</label><input type="number" id="v_manoobra" value="650000">
+      </div>
+    </div>
+  </div>
+
+  <div class="section" id="sec-frentes">
+    <div class="section-head" onclick="toggleSection('sec-frentes')">
+      <h2>Frentes cargados</h2>
+      <span class="chevron open" id="chev-sec-frentes">▶</span>
+    </div>
+    <div class="section-body open" id="body-sec-frentes">
+      <div id="frentes-list"></div>
+      <button class="btn-add" onclick="agregarFrente()">+ Agregar frente</button>
+    </div>
+  </div>
+
+  <div class="section" id="sec-cliente">
+    <div class="section-head" onclick="toggleSection('sec-cliente')">
+      <h2>Guardar cotización</h2>
+      <span class="chevron open" id="chev-sec-cliente">▶</span>
+    </div>
+    <div class="section-body open" id="body-sec-cliente">
+      <div class="cliente-grid">
+        <div class="field"><label>Cliente</label><input type="text" id="cli-nombre" placeholder="Nombre"></div>
+        <div class="field"><label>Contacto</label><input type="text" id="cli-contacto" placeholder="Tel. / WhatsApp"></div>
+      </div>
+      <button class="btn-guardar" onclick="guardarCotizacion()">Guardar en historial</button>
+      <div class="hist-msg" id="hist-msg"></div>
+    </div>
+  </div>
+
+  <div class="section" id="sec-historial">
+    <div class="section-head" onclick="toggleSection('sec-historial')">
+      <h2>Historial</h2>
+      <span class="chevron" id="chev-sec-historial">▶</span>
+    </div>
+    <div class="section-body" id="body-sec-historial">
+      <div id="historial-list"><div class="hist-empty">Cargando...</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="total-bar">
+  <span class="lbl">Total</span>
+  <span class="amt" id="total-general">$0</span>
+</div>
+
+<script>
+let frentes = [];
+let nextId = 1;
+
+function toggleSection(id){
+  document.getElementById('body-'+id).classList.toggle('open');
+  document.getElementById('chev-'+id).classList.toggle('open');
+}
+
+function fmt(n){
+  return '$' + Math.round(n).toLocaleString('es-AR');
+}
+
+function val(id){
+  const el = document.getElementById(id);
+  return el ? (parseFloat(el.value) || 0) : 0;
+}
+
+function agregarFrente(){
+  frentes.push({
+    id: nextId++,
+    desc: 'Frente ' + nextId,
+    ancho: 0, alto: 0,
+    bisagras: 0, kit: 0, fogonero: 0, cubiertero: 0
+  });
+  render();
+}
+
+function eliminarFrente(id){
+  frentes = frentes.filter(f => f.id !== id);
+  render();
+}
+
+function actualizarFrente(id, campo, valor){
+  const f = frentes.find(f => f.id === id);
+  if (!f) return;
+  f[campo] = campo === 'desc' ? valor : (parseFloat(valor) || 0);
+  calcularTotales();
+}
+
+function calcularFrente(f){
+  const valor1 = val('v_valor1'), valor2 = val('v_valor2');
+  const bisagra = val('v_bisagra'), kit = val('v_kit');
+  const fogonero = val('v_fogonero'), cubiertero = val('v_cubiertero');
+  const comision = val('v_comision'), logistica = val('v_logistica'), manoobra = val('v_manoobra');
+
+  const area = f.ancho * f.alto;
+  const subA = area * valor1;
+  const subB = area * valor2;
+  const subC = f.bisagras * bisagra;
+  const subD = f.kit * kit;
+  const subE = f.fogonero * fogonero;
+  const subF = f.cubiertero * cubiertero;
+  const subG = comision;
+  const subH = logistica;
+  const subI = manoobra;
+  const total = subA+subB+subC+subD+subE+subF+subG+subH+subI;
+  return {area, subA, subB, subC, subD, subE, subF, subG, subH, subI, total};
+}
+
+function render(){
+  const list = document.getElementById('frentes-list');
+  list.innerHTML = '';
+  frentes.forEach(f => {
+    const calc = calcularFrente(f);
+    const card = document.createElement('div');
+    card.className = 'frente-card';
+    card.innerHTML = `
+      <div class="frente-top">
+        <input type="text" value="${f.desc}" oninput="actualizarFrente(${f.id},'desc',this.value)">
+        <button class="btn-del" onclick="eliminarFrente(${f.id})">✕</button>
+      </div>
+      <div class="medidas-row">
+        <div class="field"><label>Ancho (m)</label><input type="number" step="0.01" value="${f.ancho||''}" oninput="actualizarFrente(${f.id},'ancho',this.value)"></div>
+        <div class="field"><label>Alto (m)</label><input type="number" step="0.01" value="${f.alto||''}" oninput="actualizarFrente(${f.id},'alto',this.value)"></div>
+      </div>
+      <div class="cant-grid">
+        <div class="field"><label>Cant. bisagras</label><input type="number" value="${f.bisagras||''}" oninput="actualizarFrente(${f.id},'bisagras',this.value)"></div>
+        <div class="field"><label>Cant. kit</label><input type="number" value="${f.kit||''}" oninput="actualizarFrente(${f.id},'kit',this.value)"></div>
+        <div class="field"><label>Cant. fogonero</label><input type="number" value="${f.fogonero||''}" oninput="actualizarFrente(${f.id},'fogonero',this.value)"></div>
+        <div class="field"><label>Cant. cubiertero</label><input type="number" value="${f.cubiertero||''}" oninput="actualizarFrente(${f.id},'cubiertero',this.value)"></div>
+      </div>
+      <div class="frente-total">
+        <span class="label">Área: ${calc.area.toFixed(2)} m²</span>
+        <span class="val">${fmt(calc.total)}</span>
+      </div>
+      <div class="desglose-toggle" onclick="toggleDesglose(${f.id})" id="desglose-toggle-${f.id}">Ver detalle ▾</div>
+      <div class="desglose" id="desglose-${f.id}" style="display:none">${desgloseHTML(calc)}</div>
+    `;
+    list.appendChild(card);
+  });
+  calcularTotales();
+}
+
+function desgloseHTML(calc){
+  return `
+    Chapa: <b>${fmt(calc.subA)}</b><br>
+    Pintura: <b>${fmt(calc.subB)}</b><br>
+    Bisagras: <b>${fmt(calc.subC)}</b><br>
+    Kit: <b>${fmt(calc.subD)}</b><br>
+    Fogonero: <b>${fmt(calc.subE)}</b><br>
+    Cubiertero: <b>${fmt(calc.subF)}</b><br>
+    Comisión: <b>${fmt(calc.subG)}</b><br>
+    Logística: <b>${fmt(calc.subH)}</b><br>
+    Mano de obra: <b>${fmt(calc.subI)}</b>
+  `;
+}
+
+function toggleDesglose(id){
+  const div = document.getElementById('desglose-'+id);
+  const toggle = document.getElementById('desglose-toggle-'+id);
+  const abierto = div.style.display !== 'none';
+  div.style.display = abierto ? 'none' : 'block';
+  toggle.textContent = abierto ? 'Ver detalle ▾' : 'Ocultar detalle ▴';
+}
+
+function calcularTotales(){
+  let total = 0;
+  frentes.forEach(f => { total += calcularFrente(f).total; });
+  document.getElementById('total-general').textContent = fmt(total);
+  // refrescar solo los totales por tarjeta sin re-crear inputs (evita perder foco)
+  const cards = document.querySelectorAll('.frente-card');
+  cards.forEach((card, i) => {
+    const f = frentes[i];
+    if (!f) return;
+    const calc = calcularFrente(f);
+    const valSpan = card.querySelector('.frente-total .val');
+    const labelSpan = card.querySelector('.frente-total .label');
+    if (valSpan) valSpan.textContent = fmt(calc.total);
+    if (labelSpan) labelSpan.textContent = 'Área: ' + calc.area.toFixed(2) + ' m²';
+    const desgloseDiv = document.getElementById('desglose-'+f.id);
+    if (desgloseDiv) desgloseDiv.innerHTML = desgloseHTML(calc);
+  });
+}
+
+// recalcular todo cuando cambian los valores base
+document.querySelectorAll('#body-sec-valores input').forEach(inp => {
+  inp.addEventListener('input', calcularTotales);
+});
+
+// ---------- Historial (guardado en el propio navegador/app del celular) ----------
+let historial = [];
+
+function cargarHistorial(){
+  try{
+    const raw = localStorage.getItem('historial');
+    historial = raw ? JSON.parse(raw) : [];
+  }catch(e){
+    historial = [];
+  }
+  renderHistorial();
+}
+
+function guardarHistorialArray(){
+  try{
+    localStorage.setItem('historial', JSON.stringify(historial));
+    return true;
+  }catch(e){
+    return false;
+  }
+}
+
+function guardarCotizacion(){
+  const msg = document.getElementById('hist-msg');
+  const totalActual = frentes.reduce((acc,f) => acc + calcularFrente(f).total, 0);
+  const entry = {
+    id: Date.now(),
+    fecha: new Date().toLocaleDateString('es-AR'),
+    cliente: document.getElementById('cli-nombre').value.trim() || 'Sin nombre',
+    contacto: document.getElementById('cli-contacto').value.trim(),
+    cantFrentes: frentes.length,
+    total: totalActual
+  };
+  historial.unshift(entry);
+  const ok = guardarHistorialArray();
+  if (ok){
+    msg.textContent = 'Guardado ✓';
+    document.getElementById('cli-nombre').value = '';
+    document.getElementById('cli-contacto').value = '';
+  } else {
+    historial.shift();
+    msg.textContent = 'No se pudo guardar, probá de nuevo';
+  }
+  renderHistorial();
+  setTimeout(() => { msg.textContent = ''; }, 2500);
+}
+
+function eliminarHistorialItem(id){
+  historial = historial.filter(h => h.id !== id);
+  guardarHistorialArray();
+  renderHistorial();
+}
+
+function renderHistorial(){
+  const cont = document.getElementById('historial-list');
+  if (!historial.length){
+    cont.innerHTML = '<div class="hist-empty">Todavía no guardaste ninguna cotización.</div>';
+    return;
+  }
+  cont.innerHTML = '';
+  historial.forEach(h => {
+    const item = document.createElement('div');
+    item.className = 'hist-item';
+    item.innerHTML = `
+      <div class="info">
+        <div class="cliente">${h.cliente}</div>
+        <div class="meta">${h.fecha} · ${h.cantFrentes} frente(s)${h.contacto ? ' · '+h.contacto : ''}</div>
+      </div>
+      <div class="total">${fmt(h.total)}</div>
+      <button class="btn-del" onclick="eliminarHistorialItem(${h.id})">✕</button>
+    `;
+    cont.appendChild(item);
+  });
+}
+
+// iniciar con un frente de ejemplo
+agregarFrente();
+cargarHistorial();
+
+// registrar service worker para que la app funcione instalada y offline
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("service-worker.js").catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
