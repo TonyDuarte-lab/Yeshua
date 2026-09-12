@@ -352,6 +352,21 @@
     </div>
   </div>
 
+  <div class="section" id="sec-sheets">
+    <div class="section-head" onclick="toggleSection('sec-sheets')">
+      <h2>Conexión con Google Sheets</h2>
+      <span class="chevron" id="chev-sec-sheets">▶</span>
+    </div>
+    <div class="section-body" id="body-sec-sheets">
+      <label class="hist-toggle-row">
+        <input type="checkbox" id="sheets-enabled" onchange="onSheetsToggle(this.checked)">
+        Registrar cada presupuesto en mi Google Sheet
+      </label>
+      <div class="field full"><label>URL del Web App de Sheets</label><input type="text" id="sheets-url" placeholder="https://script.google.com/macros/s/..." oninput="guardarSheetsUrl(this.value)"></div>
+      <div class="pdf-msg" id="sheets-msg"></div>
+    </div>
+  </div>
+
   <div class="section" id="sec-historial">
     <div class="section-head" onclick="toggleSection('sec-historial')">
       <h2>Historial</h2>
@@ -699,6 +714,69 @@ async function generarPDF(){
   if (historialHabilitado()){
     registrarEnHistorial(cliente, fecha, grandTotal, frentes.length);
   }
+
+  if (sheetsHabilitado()){
+    enviarASheets(cliente, fecha, grandTotal, groups, order);
+  }
+}
+
+// ---------- Conexión con Google Sheets (vía Apps Script) ----------
+function sheetsHabilitado(){
+  return document.getElementById('sheets-enabled').checked && !!document.getElementById('sheets-url').value.trim();
+}
+
+function guardarSheetsUrl(v){
+  try{ localStorage.setItem('sheets-url', v.trim()); }catch(e){}
+}
+
+function onSheetsToggle(activado){
+  try{ localStorage.setItem('sheets-enabled', activado ? '1' : '0'); }catch(e){}
+}
+
+function cargarConfigSheets(){
+  try{
+    const url = localStorage.getItem('sheets-url') || '';
+    const activado = localStorage.getItem('sheets-enabled') === '1';
+    document.getElementById('sheets-url').value = url;
+    document.getElementById('sheets-enabled').checked = activado;
+  }catch(e){}
+}
+
+async function enviarASheets(cliente, fecha, grandTotal, groups, order){
+  const msg = document.getElementById('sheets-msg');
+  const url = document.getElementById('sheets-url').value.trim();
+  if (!url) return;
+
+  // Arma un resumen de descripciones por plantilla (Frente de parrilla / Bajo mesada)
+  const resumen = {};
+  order.forEach(tkey => {
+    resumen[tkey] = groups[tkey].map(f => {
+      const c = calcularFrente(f);
+      return (f.desc || TEMPLATES[tkey].label) + ' (' + c.area.toFixed(2) + ' m²)';
+    }).join('; ');
+  });
+
+  const payload = {
+    fecha: fecha,
+    cliente: cliente || 'Sin nombre',
+    frente: resumen['frente'] || '',
+    bajomesada: resumen['bajomesada'] || '',
+    presupuesto: grandTotal,
+    estado: 'Presupuesto enviado'
+  };
+
+  try{
+    await fetch(url, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    });
+    if (msg) msg.textContent = 'Enviado a Sheets ✓';
+  }catch(e){
+    if (msg) msg.textContent = 'No se pudo enviar a Sheets';
+  }
+  if (msg) setTimeout(() => { msg.textContent = ''; }, 2500);
 }
 
 // ---------- Historial opcional (guardado en este dispositivo) ----------
@@ -783,6 +861,7 @@ buildValoresBaseHTML();
 agregarFrente('frente');
 preloadLogo();
 cargarHistorial();
+cargarConfigSheets();
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
