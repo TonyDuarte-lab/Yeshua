@@ -9,6 +9,8 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
   :root{
     --bg: #24272B;
@@ -96,6 +98,7 @@
     grid-template-columns: 1fr 100px;
     gap: 8px 10px;
     align-items: center;
+    margin-bottom: 6px;
   }
   .valores-grid label {
     font-size: 0.82rem;
@@ -104,12 +107,21 @@
   .valores-grid input {
     width: 100%;
   }
+  .template-block-title {
+    font-family: 'Oswald', 'Segoe UI', sans-serif;
+    font-size: 0.78rem;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--ember);
+    margin: 14px 0 6px;
+  }
+  .template-block-title:first-child { margin-top: 0; }
   .subgroup-title {
     grid-column: 1 / -1;
     font-size: 0.68rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: var(--ember);
+    color: var(--text-dim);
     margin-top: 8px;
     padding-top: 8px;
     border-top: 1px dashed var(--line);
@@ -127,6 +139,14 @@
   input[type=number]:focus, input[type=text]:focus {
     outline: none;
     border-color: var(--ember);
+  }
+  select {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    color: var(--text);
+    padding: 7px 8px;
+    border-radius: 3px;
+    font-size: 0.85rem;
   }
 
   .frente-card {
@@ -159,6 +179,9 @@
   }
   .btn-del:active { border-color: var(--ember); color: var(--ember); }
 
+  .tpl-row { margin-bottom: 10px; }
+  .tpl-row select { width: 100%; }
+
   .medidas-row, .cant-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -186,17 +209,17 @@
   .frente-total .label { font-size: 0.75rem; color: var(--text-dim); }
   .frente-total .val { font-family: 'Oswald', sans-serif; font-size: 1.05rem; color: var(--ember); }
 
+  .btn-add-row { display: flex; gap: 8px; margin-top: 4px; }
   .btn-add {
+    flex: 1;
     display: block;
-    width: 100%;
     background: transparent;
     border: 1px dashed var(--steel);
     color: var(--steel);
     padding: 10px;
     border-radius: 3px;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     cursor: pointer;
-    margin-top: 4px;
   }
   .btn-add:active { border-color: var(--ember); color: var(--ember); }
 
@@ -238,6 +261,49 @@
     user-select: none;
   }
   .desglose-toggle:active { color: var(--ember); }
+
+  .field.full { margin-bottom: 10px; }
+  .btn-pdf {
+    display: block;
+    width: 100%;
+    background: var(--ember-dim);
+    border: 1px solid var(--ember);
+    color: var(--text);
+    padding: 10px;
+    border-radius: 3px;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .btn-pdf:active { background: var(--ember); }
+  .pdf-msg { font-size: 0.72rem; color: var(--text-dim); margin-top: 8px; min-height: 1em; }
+
+  .hist-toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+    cursor: pointer;
+  }
+  .hist-toggle-row input { width: 16px; height: 16px; flex-shrink: 0; }
+  .hist-item {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--ember-dim);
+    border-radius: 3px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .hist-item .info { flex: 1; min-width: 0; }
+  .hist-item .cliente { font-size: 0.88rem; color: var(--text); }
+  .hist-item .meta { font-size: 0.68rem; color: var(--text-dim); margin-top: 2px; }
+  .hist-item .total { font-family: 'Oswald', sans-serif; font-size: 0.95rem; color: var(--ember); white-space: nowrap; }
+  .hist-empty { font-size: 0.78rem; color: var(--text-dim); padding: 8px 0; }
 </style>
 </head>
 <body>
@@ -256,22 +322,7 @@
       <span class="chevron" id="chev-sec-valores">▶</span>
     </div>
     <div class="section-body" id="body-sec-valores">
-      <div class="valores-grid">
-        <div class="subgroup-title">Por m²</div>
-        <label>Valor 1</label><input type="number" id="v_valor1" value="15000">
-        <label>Valor 2</label><input type="number" id="v_valor2" value="3000">
-
-        <div class="subgroup-title">Por unidad</div>
-        <label>Bisagra</label><input type="number" id="v_bisagra" value="20000">
-        <label>Kit</label><input type="number" id="v_kit" value="170000">
-        <label>Fogonero</label><input type="number" id="v_fogonero" value="250000">
-        <label>Cubiertero</label><input type="number" id="v_cubiertero" value="180000">
-
-        <div class="subgroup-title">Fijos (por frente)</div>
-        <label>Comisión</label><input type="number" id="v_comision" value="70000">
-        <label>Logística</label><input type="number" id="v_logistica" value="80000">
-        <label>Mano de obra</label><input type="number" id="v_manoobra" value="650000">
-      </div>
+      <div id="valores-container"></div>
     </div>
   </div>
 
@@ -282,7 +333,36 @@
     </div>
     <div class="section-body open" id="body-sec-frentes">
       <div id="frentes-list"></div>
-      <button class="btn-add" onclick="agregarFrente()">+ Agregar frente</button>
+      <div class="btn-add-row">
+        <button class="btn-add" onclick="agregarFrente('frente')">+ Frente de parrilla</button>
+        <button class="btn-add" onclick="agregarFrente('bajomesada')">+ Bajo mesada</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="section" id="sec-pdf">
+    <div class="section-head" onclick="toggleSection('sec-pdf')">
+      <h2>Generar presupuesto (PDF)</h2>
+      <span class="chevron open" id="chev-sec-pdf">▶</span>
+    </div>
+    <div class="section-body open" id="body-sec-pdf">
+      <div class="field full"><label>Cliente (opcional)</label><input type="text" id="pdf-cliente" placeholder="Nombre del cliente"></div>
+      <button class="btn-pdf" onclick="generarPDF()">Generar PDF para el cliente</button>
+      <div class="pdf-msg" id="pdf-msg"></div>
+    </div>
+  </div>
+
+  <div class="section" id="sec-historial">
+    <div class="section-head" onclick="toggleSection('sec-historial')">
+      <h2>Historial</h2>
+      <span class="chevron" id="chev-sec-historial">▶</span>
+    </div>
+    <div class="section-body" id="body-sec-historial">
+      <label class="hist-toggle-row">
+        <input type="checkbox" id="hist-enabled" onchange="onHistToggle(this.checked)">
+        Guardar en este celular cada presupuesto que genere
+      </label>
+      <div id="historial-list"></div>
     </div>
   </div>
 </div>
@@ -293,6 +373,43 @@
 </div>
 
 <script>
+// ---------- Config de plantillas ----------
+const TEMPLATES = {
+  frente: {
+    label: 'Frente de Parrilla',
+    perM2: [
+      { key:'valor1', label:'Chapa y plegado', def:160000 },
+      { key:'valor2', label:'Pintura', def:52000 },
+    ],
+    perUnit: [
+      { key:'bisagra', label:'Bisagra', def:20000, qty:'bisagras' },
+      { key:'kit', label:'Kit', def:170000, qty:'kit' },
+      { key:'carbonero', label:'Carbonero', def:250000, qty:'carbonero' },
+      { key:'cubiertero', label:'Cubiertero', def:180000, qty:'cubiertero' },
+    ],
+    fixed: [
+      { key:'comision', label:'Comisión', def:70000 },
+      { key:'logistica', label:'Logística', def:80000 },
+      { key:'manoobra', label:'Mano de obra', def:650000 },
+    ]
+  },
+  bajomesada: {
+    label: 'Bajo Mesada',
+    perM2: [
+      { key:'valor1', label:'Chapa', def:150000 },
+      { key:'valor2', label:'Pintura', def:42000 },
+    ],
+    perUnit: [
+      { key:'bisagra', label:'Bisagra', def:15000, qty:'bisagras' },
+      { key:'kit', label:'Kit', def:10000, qty:'kit' },
+    ],
+    fixed: [
+      { key:'manoobra', label:'Mano de obra', def:150000 },
+      { key:'instalacion', label:'Instalación', def:100000 },
+    ]
+  }
+};
+
 let frentes = [];
 let nextId = 1;
 
@@ -310,12 +427,39 @@ function val(id){
   return el ? (parseFloat(el.value) || 0) : 0;
 }
 
-function agregarFrente(){
+// ---------- Construir "Valores base" dinámicamente a partir de TEMPLATES ----------
+function buildValoresBaseHTML(){
+  let html = '';
+  Object.keys(TEMPLATES).forEach(tkey => {
+    const t = TEMPLATES[tkey];
+    html += `<div class="template-block-title">${t.label}</div><div class="valores-grid">`;
+    html += `<div class="subgroup-title">Por m²</div>`;
+    t.perM2.forEach(it => {
+      html += `<label>${it.label}</label><input type="number" id="v_${tkey}_${it.key}" value="${it.def}">`;
+    });
+    html += `<div class="subgroup-title">Por unidad</div>`;
+    t.perUnit.forEach(it => {
+      html += `<label>${it.label}</label><input type="number" id="v_${tkey}_${it.key}" value="${it.def}">`;
+    });
+    html += `<div class="subgroup-title">Fijos (por frente)</div>`;
+    t.fixed.forEach(it => {
+      html += `<label>${it.label}</label><input type="number" id="v_${tkey}_${it.key}" value="${it.def}">`;
+    });
+    html += `</div>`;
+  });
+  document.getElementById('valores-container').innerHTML = html;
+  document.querySelectorAll('#valores-container input').forEach(inp => {
+    inp.addEventListener('input', calcularTotales);
+  });
+}
+
+function agregarFrente(template){
   frentes.push({
     id: nextId++,
-    desc: 'Frente ' + nextId,
+    desc: TEMPLATES[template].label + ' ' + nextId,
+    template: template,
     ancho: 0, alto: 0,
-    bisagras: 0, kit: 0, fogonero: 0, cubiertero: 0
+    bisagras: 0, kit: 0, carbonero: 0, cubiertero: 0
   });
   render();
 }
@@ -332,34 +476,63 @@ function actualizarFrente(id, campo, valor){
   calcularTotales();
 }
 
-function calcularFrente(f){
-  const valor1 = val('v_valor1'), valor2 = val('v_valor2');
-  const bisagra = val('v_bisagra'), kit = val('v_kit');
-  const fogonero = val('v_fogonero'), cubiertero = val('v_cubiertero');
-  const comision = val('v_comision'), logistica = val('v_logistica'), manoobra = val('v_manoobra');
+function cambiarTemplate(id, nuevoTemplate){
+  const f = frentes.find(f => f.id === id);
+  if (!f) return;
+  f.template = nuevoTemplate;
+  render();
+}
 
-  const area = f.ancho * f.alto;
-  const subA = area * valor1;
-  const subB = area * valor2;
-  const subC = f.bisagras * bisagra;
-  const subD = f.kit * kit;
-  const subE = f.fogonero * fogonero;
-  const subF = f.cubiertero * cubiertero;
-  const subG = comision;
-  const subH = logistica;
-  const subI = manoobra;
-  const total = subA+subB+subC+subD+subE+subF+subG+subH+subI;
-  return {area, subA, subB, subC, subD, subE, subF, subG, subH, subI, total};
+function calcularFrente(f){
+  const t = TEMPLATES[f.template] || TEMPLATES.frente;
+  const area = (f.ancho||0) * (f.alto||0);
+  let total = 0;
+  const items = [];
+  t.perM2.forEach(it => {
+    const v = val('v_'+f.template+'_'+it.key);
+    const sub = area * v;
+    items.push({ label: it.label, value: sub });
+    total += sub;
+  });
+  t.perUnit.forEach(it => {
+    const qty = f[it.qty] || 0;
+    const v = val('v_'+f.template+'_'+it.key);
+    const sub = qty * v;
+    items.push({ label: it.label, value: sub });
+    total += sub;
+  });
+  t.fixed.forEach(it => {
+    const v = val('v_'+f.template+'_'+it.key);
+    items.push({ label: it.label, value: v });
+    total += v;
+  });
+  return { area, items, total };
+}
+
+function templateOptionsHTML(selected){
+  return Object.keys(TEMPLATES).map(tkey =>
+    `<option value="${tkey}" ${tkey===selected?'selected':''}>${TEMPLATES[tkey].label}</option>`
+  ).join('');
 }
 
 function render(){
   const list = document.getElementById('frentes-list');
   list.innerHTML = '';
   frentes.forEach(f => {
+    const t = TEMPLATES[f.template] || TEMPLATES.frente;
     const calc = calcularFrente(f);
     const card = document.createElement('div');
     card.className = 'frente-card';
+
+    let qtyFieldsHTML = '';
+    t.perUnit.forEach(it => {
+      qtyFieldsHTML += `<div class="field"><label>Cant. ${it.label}</label><input type="number" value="${f[it.qty]||''}" oninput="actualizarFrente(${f.id},'${it.qty}',this.value)"></div>`;
+    });
+
     card.innerHTML = `
+      <div class="tpl-row">
+        <select onchange="cambiarTemplate(${f.id}, this.value)">${templateOptionsHTML(f.template)}</select>
+      </div>
       <div class="frente-top">
         <input type="text" value="${f.desc}" oninput="actualizarFrente(${f.id},'desc',this.value)">
         <button class="btn-del" onclick="eliminarFrente(${f.id})">✕</button>
@@ -368,12 +541,7 @@ function render(){
         <div class="field"><label>Ancho (m)</label><input type="number" step="0.01" value="${f.ancho||''}" oninput="actualizarFrente(${f.id},'ancho',this.value)"></div>
         <div class="field"><label>Alto (m)</label><input type="number" step="0.01" value="${f.alto||''}" oninput="actualizarFrente(${f.id},'alto',this.value)"></div>
       </div>
-      <div class="cant-grid">
-        <div class="field"><label>Cant. bisagras</label><input type="number" value="${f.bisagras||''}" oninput="actualizarFrente(${f.id},'bisagras',this.value)"></div>
-        <div class="field"><label>Cant. kit</label><input type="number" value="${f.kit||''}" oninput="actualizarFrente(${f.id},'kit',this.value)"></div>
-        <div class="field"><label>Cant. fogonero</label><input type="number" value="${f.fogonero||''}" oninput="actualizarFrente(${f.id},'fogonero',this.value)"></div>
-        <div class="field"><label>Cant. cubiertero</label><input type="number" value="${f.cubiertero||''}" oninput="actualizarFrente(${f.id},'cubiertero',this.value)"></div>
-      </div>
+      <div class="cant-grid">${qtyFieldsHTML}</div>
       <div class="frente-total">
         <span class="label">Área: ${calc.area.toFixed(2)} m²</span>
         <span class="val">${fmt(calc.total)}</span>
@@ -387,17 +555,7 @@ function render(){
 }
 
 function desgloseHTML(calc){
-  return `
-    Chapa: <b>${fmt(calc.subA)}</b><br>
-    Pintura: <b>${fmt(calc.subB)}</b><br>
-    Bisagras: <b>${fmt(calc.subC)}</b><br>
-    Kit: <b>${fmt(calc.subD)}</b><br>
-    Fogonero: <b>${fmt(calc.subE)}</b><br>
-    Cubiertero: <b>${fmt(calc.subF)}</b><br>
-    Comisión: <b>${fmt(calc.subG)}</b><br>
-    Logística: <b>${fmt(calc.subH)}</b><br>
-    Mano de obra: <b>${fmt(calc.subI)}</b>
-  `;
+  return calc.items.map(i => `${i.label}: <b>${fmt(i.value)}</b>`).join('<br>');
 }
 
 function toggleDesglose(id){
@@ -412,7 +570,6 @@ function calcularTotales(){
   let total = 0;
   frentes.forEach(f => { total += calcularFrente(f).total; });
   document.getElementById('total-general').textContent = fmt(total);
-  // refrescar solo los totales por tarjeta sin re-crear inputs (evita perder foco)
   const cards = document.querySelectorAll('.frente-card');
   cards.forEach((card, i) => {
     const f = frentes[i];
@@ -427,20 +584,71 @@ function calcularTotales(){
   });
 }
 
-// recalcular todo cuando cambian los valores base
-document.querySelectorAll('#body-sec-valores input').forEach(inp => {
-  inp.addEventListener('input', calcularTotales);
-});
-
-// iniciar con un frente de ejemplo
-agregarFrente();
-
-// registrar service worker para que la app funcione instalada y offline
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js").catch(() => {});
-  });
+// ---------- PDF para el cliente (sin precios de insumos ni mano de obra) ----------
+let logoDataUrl = null;
+async function preloadLogo(){
+  try{
+    const res = await fetch('logo.png');
+    const blob = await res.blob();
+    logoDataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }catch(e){
+    logoDataUrl = null;
+  }
 }
-</script>
-</body>
-</html>
+
+async function generarPDF(){
+  const msg = document.getElementById('pdf-msg');
+  if (!frentes.length){
+    msg.textContent = 'Cargá al menos un frente antes de generar el PDF.';
+    return;
+  }
+  if (!window.jspdf){
+    msg.textContent = 'Necesitás conexión a internet para generar el PDF.';
+    return;
+  }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'a4' });
+  const marginX = 14;
+  const rightX = 196;
+  let y = 18;
+
+  if (logoDataUrl){
+    try { doc.addImage(logoDataUrl, 'PNG', marginX, y-6, 18, 18); } catch(e){}
+  }
+  doc.setFont('helvetica','bold'); doc.setFontSize(16); doc.setTextColor(30,30,30);
+  doc.text('Presupuesto', marginX+24, y);
+  doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(120,120,120);
+  const fecha = new Date().toLocaleDateString('es-AR');
+  doc.text('Fecha: ' + fecha, rightX, y-2, { align:'right' });
+  const cliente = document.getElementById('pdf-cliente').value.trim();
+  if (cliente){
+    doc.text('Cliente: ' + cliente, rightX, y+4, { align:'right' });
+  }
+  y += 18;
+  doc.setDrawColor(217,118,43); doc.setLineWidth(0.8);
+  doc.line(marginX, y, rightX, y);
+  y += 8;
+
+  let grandTotal = 0;
+  const groups = {};
+  const order = [];
+  frentes.forEach(f => {
+    if (!groups[f.template]){ groups[f.template] = []; order.push(f.template); }
+    groups[f.template].push(f);
+  });
+
+  order.forEach(tkey => {
+    const t = TEMPLATES[tkey];
+    doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor(30,30,30);
+    doc.text(t.label, marginX, y);
+    y += 4;
+
+    const rows = groups[tkey].map(f => {
+      const c = calcularFrente(f);
+      grandTotal += c.total;
+      return [f.desc || '-', (f.ancho||0).toFixed(2)+' m', (f.alto||0).toFixed(2)+' m', c.
