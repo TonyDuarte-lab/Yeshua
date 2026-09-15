@@ -395,7 +395,7 @@ const TEMPLATES = {
     label: 'Frente de Parrilla',
     specs: [
       'Chapa N°18',
-      'Puerta guillotina con aislante térmico y doble chapa, apertura hacia arriba',
+      'Puerta guillotina con aislante térmico y doble chapa, apertura hacia arriba o hacia abajo según su preferencia',
       'Cubre losa de acero inoxidable',
       'Manijón de acero inoxidable',
       'Puertas con bisagras de cierre suave',
@@ -692,7 +692,14 @@ async function generarPDF(){
     const rows = groups[tkey].map(f => {
       const c = calcularFrente(f);
       grandTotal += c.total;
-      return [f.desc || '-', (f.ancho||0).toFixed(2)+' m', (f.alto||0).toFixed(2)+' m', c.area.toFixed(2)+' m²', fmt(c.total)];
+      let desc = f.desc || '-';
+      if (tkey === 'frente'){
+        const extras = [];
+        if ((f.carbonero||0) > 0) extras.push('cajón carbonero');
+        if ((f.cubiertero||0) > 0) extras.push('cajón cubiertero');
+        if (extras.length) desc += '  (incluye ' + extras.join(' y ') + ')';
+      }
+      return [desc, (f.ancho||0).toFixed(2)+' m', (f.alto||0).toFixed(2)+' m', c.area.toFixed(2)+' m²', fmt(c.total)];
     });
 
     doc.autoTable({
@@ -723,6 +730,29 @@ async function generarPDF(){
       y += 6;
     } else {
       y += 2;
+    }
+
+    if (tkey === 'frente'){
+      const faltaCarbonero = groups[tkey].some(f => !((f.carbonero||0) > 0));
+      const faltaCubiertero = groups[tkey].some(f => !((f.cubiertero||0) > 0));
+      if (faltaCarbonero || faltaCubiertero){
+        if (y > 260){ doc.addPage(); y = 20; }
+        doc.setFont('helvetica','bolditalic'); doc.setFontSize(9.5); doc.setTextColor(217,118,43);
+        doc.text('¿Querés agregarlo?', marginX, y);
+        y += 5;
+        doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(70,70,70);
+        if (faltaCarbonero){
+          doc.text('•  Cajón carbonero: ' + fmt(val('v_frente_carbonero')), marginX, y);
+          y += 4.6;
+        }
+        if (faltaCubiertero){
+          doc.text('•  Cajón cubiertero: ' + fmt(val('v_frente_cubiertero')), marginX, y);
+          y += 4.6;
+        }
+        doc.setFont('helvetica','bolditalic');
+        doc.text('¡No te quedes sin el tuyo!', marginX, y);
+        y += 8;
+      }
     }
   });
 
