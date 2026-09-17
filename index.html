@@ -707,24 +707,34 @@ async function generarPDF(){
   if (logoDataUrl){
     try { doc.addImage(logoDataUrl, 'PNG', marginX, y-6, 18, 18); } catch(e){}
   }
-  doc.setFont('helvetica','bold'); doc.setFontSize(16); doc.setTextColor(30,30,30);
+  doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.setTextColor(30,30,30);
   doc.text('Presupuesto', marginX+24, y);
-  doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(120,120,120);
+  doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(120,120,120);
   const fecha = new Date().toLocaleDateString('es-AR');
   doc.text('Fecha: ' + fecha, rightX, y-2, { align:'right' });
   const cliente = document.getElementById('pdf-cliente').value.trim();
   let infoY = y + 4;
   if (cliente){
     doc.text('Cliente: ' + cliente, rightX, infoY, { align:'right' });
-    infoY += 6;
+    infoY += 5.5;
   }
   if (email){
     doc.text('Email: ' + email, rightX, infoY, { align:'right' });
   }
-  y += 24;
+  y += 20;
   doc.setDrawColor(217,118,43); doc.setLineWidth(0.8);
   doc.line(marginX, y, rightX, y);
-  y += 8;
+  y += 7;
+
+  // Ancho fijo de la columna de precio, igual en todas las tablas, para que
+  // los precios queden siempre en la misma posición vertical (alineados).
+  const anchoPrecio = 30;
+
+  function lineaConPrecio(label, precioTexto, x, yy, opts){
+    opts = opts || {};
+    doc.text(label, x, yy);
+    doc.text(precioTexto, rightX, yy, { align:'right' });
+  }
 
   let grandTotal = 0;
   const groups = {};
@@ -734,11 +744,15 @@ async function generarPDF(){
     groups[f.template].push(f);
   });
 
+  // Para la recomendación consolidada (se muestra una sola vez, al final).
+  let carboneroFalta = false, carboneroPrecio = 0;
+  let cubierteroFalta = false, cubierteroPrecio = 0;
+
   order.forEach(tkey => {
     const t = TEMPLATES[tkey];
-    doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor(30,30,30);
+    doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(30,30,30);
     doc.text(t.label, marginX, y);
-    y += 4;
+    y += 3.5;
 
     const rows = groups[tkey].map(f => {
       const c = calcularFrente(f);
@@ -754,97 +768,96 @@ async function generarPDF(){
       margin: { left: marginX, right: 14 },
       head: t.opciones ? [['Descripción','Medida','Precio']] : [['Descripción','Precio']],
       body: rows,
-      styles: { fontSize: 9, cellPadding: 2.6 },
-      headStyles: { fillColor: [217,118,43], textColor: 255 },
+      styles: { fontSize: 8.3, cellPadding: 2.2, valign: 'middle' },
+      headStyles: { fillColor: [217,118,43], textColor: 255, fontStyle: 'bold' },
+      columnStyles: t.opciones
+        ? { 2: { halign:'right', cellWidth: anchoPrecio } }
+        : { 1: { halign:'right', cellWidth: anchoPrecio } },
       theme: 'grid',
     });
-    y = doc.lastAutoTable.finalY + 6;
+    y = doc.lastAutoTable.finalY + 4;
 
     // "Agrego: ..." — pegado debajo de la tabla, un renglón por cada presupuesto
-    // que tenga cajón carbonero y/o cubiertero, con el precio de ese agregado.
+    // que tenga cajón carbonero y/o cubiertero, con el precio alineado a la derecha.
+    // También suma a los contadores de la recomendación consolidada del final.
     groups[tkey].forEach(f => {
       const agregados = [];
-      if ((f.carbonero||0) > 0) agregados.push({ label:'cajón carbonero', val: val('v_'+f.template+'_carbonero') });
-      if ((f.cubiertero||0) > 0) agregados.push({ label:'cajón cubiertero', val: val('v_'+f.template+'_cubiertero') });
+      if ((f.carbonero||0) > 0){
+        agregados.push({ label:'Agrego: cajón carbonero', val: val('v_'+f.template+'_carbonero') });
+      } else if (!t.opciones){
+        carboneroFalta = true;
+        carboneroPrecio = carboneroPrecio || val('v_'+f.template+'_carbonero');
+      }
+      if ((f.cubiertero||0) > 0){
+        agregados.push({ label:'Agrego: cajón cubiertero', val: val('v_'+f.template+'_cubiertero') });
+      } else if (!t.opciones){
+        cubierteroFalta = true;
+        cubierteroPrecio = cubierteroPrecio || val('v_'+f.template+'_cubiertero');
+      }
       if (!agregados.length) return;
-      if (y > 280){ doc.addPage(); y = 20; }
-      doc.setFont('helvetica','italic'); doc.setFontSize(8.3); doc.setTextColor(120,120,120);
+      if (y > 282){ doc.addPage(); y = 20; }
+      doc.setFont('helvetica','italic'); doc.setFontSize(7.6); doc.setTextColor(130,130,130);
       doc.text((f.desc || '-') + ':', marginX, y);
-      y += 4;
-      doc.setFont('helvetica','normal'); doc.setFontSize(8.6); doc.setTextColor(90,90,90);
+      y += 3.6;
+      doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(90,90,90);
       agregados.forEach(a => {
-        if (y > 285){ doc.addPage(); y = 20; }
-        doc.text('Agrego: ' + a.label + ': ' + fmt(a.val), marginX + 3, y);
-        y += 4.2;
+        if (y > 286){ doc.addPage(); y = 20; }
+        lineaConPrecio(a.label, fmt(a.val), marginX + 3, y);
+        y += 3.9;
       });
-      y += 1.5;
+      y += 1;
     });
-    y += 2;
+    y += 1.5;
 
     if (t.specs && t.specs.length){
-      if (y > 265){ doc.addPage(); y = 20; }
-      doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor(217,118,43);
+      if (y > 268){ doc.addPage(); y = 20; }
+      doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(217,118,43);
       doc.text('Detalles técnicos', marginX, y);
-      y += 5;
-      doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(70,70,70);
+      y += 4.5;
+      doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(70,70,70);
       t.specs.forEach(line => {
         const wrapped = doc.splitTextToSize('•  ' + line, rightX - marginX);
         wrapped.forEach(wl => {
-          if (y > 285){ doc.addPage(); y = 20; }
+          if (y > 288){ doc.addPage(); y = 20; }
           doc.text(wl, marginX, y);
-          y += 4.6;
+          y += 4;
         });
       });
-      y += 6;
+      y += 4;
     } else {
-      y += 2;
+      y += 1.5;
     }
   });
 
-  // Recomendación de venta — separada de los presupuestos, más abajo, después
-  // de todos los grupos. Una por cada tipo (frente / bajo mesada) que tenga
-  // algún ítem sin cajón carbonero y/o cubiertero.
-  const gruposConFaltantes = order.filter(tkey => {
-    if (TEMPLATES[tkey].opciones) return false;
-    return groups[tkey].some(f => !((f.carbonero||0) > 0) || !((f.cubiertero||0) > 0));
-  });
-  if (gruposConFaltantes.length){
-    if (y > 240){ doc.addPage(); y = 20; }
-    y += 6;
+  // Recomendación de venta — UNA sola vez para todo el presupuesto (no repetida
+  // por cada tipo de producto), separada con una línea, más abajo.
+  if (carboneroFalta || cubierteroFalta){
+    if (y > 250){ doc.addPage(); y = 20; }
+    y += 4;
     doc.setDrawColor(220,220,220); doc.setLineWidth(0.4);
     doc.line(marginX, y, rightX, y);
-    y += 8;
-    doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor(217,118,43);
-    doc.text('Recomendado para vos', marginX, y);
     y += 7;
-
-    gruposConFaltantes.forEach(tkey => {
-      const t = TEMPLATES[tkey];
-      const faltaCarbonero = groups[tkey].some(f => !((f.carbonero||0) > 0));
-      const faltaCubiertero = groups[tkey].some(f => !((f.cubiertero||0) > 0));
-      if (y > 265){ doc.addPage(); y = 20; }
-      doc.setFont('helvetica','bolditalic'); doc.setFontSize(9.5); doc.setTextColor(30,30,30);
-      doc.text(t.label + ' — ¿Querés agregarlo?', marginX, y);
-      y += 5;
-      doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(70,70,70);
-      if (faltaCarbonero){
-        doc.text('•  Cajón carbonero: ' + fmt(val('v_'+tkey+'_carbonero')), marginX, y);
-        y += 4.6;
-      }
-      if (faltaCubiertero){
-        doc.text('•  Cajón cubiertero: ' + fmt(val('v_'+tkey+'_cubiertero')), marginX, y);
-        y += 4.6;
-      }
-      doc.setFont('helvetica','bolditalic'); doc.setTextColor(217,118,43);
-      doc.text('¡No te quedes sin el tuyo!', marginX, y);
-      y += 8;
-    });
+    doc.setFont('helvetica','bolditalic'); doc.setFontSize(9.5); doc.setTextColor(217,118,43);
+    doc.text('¿Querés agregarlo?', marginX, y);
+    y += 5;
+    doc.setFont('helvetica','normal'); doc.setFontSize(8.6); doc.setTextColor(70,70,70);
+    if (carboneroFalta){
+      lineaConPrecio('•  Cajón carbonero', fmt(carboneroPrecio), marginX, y);
+      y += 4.4;
+    }
+    if (cubierteroFalta){
+      lineaConPrecio('•  Cajón cubiertero', fmt(cubierteroPrecio), marginX, y);
+      y += 4.4;
+    }
+    doc.setFont('helvetica','bolditalic'); doc.setTextColor(217,118,43);
+    doc.text('¡No te quedes sin el tuyo!', marginX, y);
+    y += 7;
   }
 
-  if (y > 275){ doc.addPage(); y = 20; }
+  if (y > 278){ doc.addPage(); y = 20; }
   doc.setDrawColor(217,118,43); doc.setLineWidth(0.8);
   doc.line(marginX, y-4, rightX, y-4);
-  doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(30,30,30);
+  doc.setFont('helvetica','bold'); doc.setFontSize(12.5); doc.setTextColor(30,30,30);
   doc.text('TOTAL: ' + fmt(grandTotal), rightX, y+3, { align:'right' });
 
   const nombreArchivo = 'presupuesto' + (cliente ? '-'+cliente.replace(/\s+/g,'_') : '') + '.pdf';
