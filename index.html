@@ -336,6 +336,7 @@
       <div class="btn-add-row">
         <button class="btn-add" onclick="agregarFrente('frente')">+ Frente de parrilla</button>
         <button class="btn-add" onclick="agregarFrente('bajomesada')">+ Bajo mesada</button>
+        <button class="btn-add" onclick="agregarFrente('parrillamodular')">+ Parrilla Modular</button>
       </div>
     </div>
   </div>
@@ -402,7 +403,7 @@ const TEMPLATES = {
       'Terminación con pintura horno'
     ],
     perM2: [
-      { key:'valor1', label:'Chapa y plegado', def:160000 },
+      { key:'valor1', label:'Chapa y plegado', def:175000 },
       { key:'valor2', label:'Pintura', def:52000 },
     ],
     perUnit: [
@@ -438,6 +439,17 @@ const TEMPLATES = {
       { key:'manoobra', label:'Mano de obra', def:150000 },
       { key:'instalacion', label:'Instalación', def:100000 },
     ]
+  },
+  parrillamodular: {
+    label: 'Parrilla Modular',
+    perM2: [],
+    perUnit: [],
+    fixed: [],
+    opciones: [
+      { label:'De 1,00 hasta 1,30 m', valor:980000 },
+      { label:'De 1,31 hasta 1,60 m', valor:1100000 },
+      { label:'De 1,61 hasta 2,00 m', valor:1250000 },
+    ]
   }
 };
 
@@ -464,6 +476,14 @@ function buildValoresBaseHTML(){
   Object.keys(TEMPLATES).forEach(tkey => {
     const t = TEMPLATES[tkey];
     html += `<div class="template-block-title">${t.label}</div><div class="valores-grid">`;
+    if (t.opciones){
+      html += `<div class="subgroup-title">Opciones (precio por rango de medida)</div>`;
+      t.opciones.forEach((op, i) => {
+        html += `<label>${op.label}</label><input type="number" id="v_${tkey}_opcion${i}" value="${op.valor}">`;
+      });
+      html += `</div>`;
+      return;
+    }
     html += `<div class="subgroup-title">Por m²</div>`;
     t.perM2.forEach(it => {
       html += `<label>${it.label}</label><input type="number" id="v_${tkey}_${it.key}" value="${it.def}">`;
@@ -490,7 +510,8 @@ function agregarFrente(template){
     desc: TEMPLATES[template].label + ' ' + nextId,
     template: template,
     ancho: 0, alto: 0,
-    bisagras: 0, kit: 0, carbonero: 0, cubiertero: 0
+    bisagras: 0, kit: 0, carbonero: 0, cubiertero: 0,
+    opcion: 0
   });
   render();
 }
@@ -516,6 +537,14 @@ function cambiarTemplate(id, nuevoTemplate){
 
 function calcularFrente(f){
   const t = TEMPLATES[f.template] || TEMPLATES.frente;
+
+  if (t.opciones){
+    const idx = f.opcion || 0;
+    const opt = t.opciones[idx] || t.opciones[0];
+    const v = val('v_'+f.template+'_opcion'+idx) || opt.valor;
+    return { area: 0, items: [{ label: opt.label, value: v }], total: v };
+  }
+
   const area = (f.ancho||0) * (f.alto||0);
   let total = 0;
   const items = [];
@@ -555,10 +584,26 @@ function render(){
     const card = document.createElement('div');
     card.className = 'frente-card';
 
+    let medidasHTML = '';
     let qtyFieldsHTML = '';
-    t.perUnit.forEach(it => {
-      qtyFieldsHTML += `<div class="field"><label>Cant. ${it.label}</label><input type="number" value="${f[it.qty]||''}" oninput="actualizarFrente(${f.id},'${it.qty}',this.value)"></div>`;
-    });
+    let totalInfoHTML = '';
+
+    if (t.opciones){
+      const opcionesHTML = t.opciones.map((op, i) =>
+        `<option value="${i}" ${ (f.opcion||0) === i ? 'selected' : '' }>${op.label}</option>`
+      ).join('');
+      medidasHTML = `<div class="field" style="grid-column:1 / -1;"><label>Medida</label><select onchange="actualizarFrente(${f.id},'opcion',this.value)">${opcionesHTML}</select></div>`;
+      totalInfoHTML = `<span class="label">${calc.items[0] ? calc.items[0].label : ''}</span><span class="val">${fmt(calc.total)}</span>`;
+    } else {
+      medidasHTML = `
+        <div class="field"><label>Ancho (m)</label><input type="number" step="0.01" value="${f.ancho||''}" oninput="actualizarFrente(${f.id},'ancho',this.value)"></div>
+        <div class="field"><label>Alto (m)</label><input type="number" step="0.01" value="${f.alto||''}" oninput="actualizarFrente(${f.id},'alto',this.value)"></div>
+      `;
+      t.perUnit.forEach(it => {
+        qtyFieldsHTML += `<div class="field"><label>Cant. ${it.label}</label><input type="number" value="${f[it.qty]||''}" oninput="actualizarFrente(${f.id},'${it.qty}',this.value)"></div>`;
+      });
+      totalInfoHTML = `<span class="label">Área: ${calc.area.toFixed(2)} m²</span><span class="val">${fmt(calc.total)}</span>`;
+    }
 
     card.innerHTML = `
       <div class="tpl-row">
@@ -568,15 +613,9 @@ function render(){
         <input type="text" value="${f.desc}" oninput="actualizarFrente(${f.id},'desc',this.value)">
         <button class="btn-del" onclick="eliminarFrente(${f.id})">✕</button>
       </div>
-      <div class="medidas-row">
-        <div class="field"><label>Ancho (m)</label><input type="number" step="0.01" value="${f.ancho||''}" oninput="actualizarFrente(${f.id},'ancho',this.value)"></div>
-        <div class="field"><label>Alto (m)</label><input type="number" step="0.01" value="${f.alto||''}" oninput="actualizarFrente(${f.id},'alto',this.value)"></div>
-      </div>
+      <div class="medidas-row">${medidasHTML}</div>
       <div class="cant-grid">${qtyFieldsHTML}</div>
-      <div class="frente-total">
-        <span class="label">Área: ${calc.area.toFixed(2)} m²</span>
-        <span class="val">${fmt(calc.total)}</span>
-      </div>
+      <div class="frente-total">${totalInfoHTML}</div>
       <div class="desglose-toggle" onclick="toggleDesglose(${f.id})" id="desglose-toggle-${f.id}">Ver detalle ▾</div>
       <div class="desglose" id="desglose-${f.id}" style="display:none">${desgloseHTML(calc)}</div>
     `;
@@ -694,13 +733,16 @@ async function generarPDF(){
     const rows = groups[tkey].map(f => {
       const c = calcularFrente(f);
       grandTotal += c.total;
+      if (t.opciones){
+        return [f.desc || '-', c.items[0] ? c.items[0].label : '-', fmt(c.total)];
+      }
       return [f.desc || '-', (f.ancho||0).toFixed(2)+' m', (f.alto||0).toFixed(2)+' m', c.area.toFixed(2)+' m²', fmt(c.total)];
     });
 
     doc.autoTable({
       startY: y,
       margin: { left: marginX, right: 14 },
-      head: [['Descripción','Ancho','Alto','Área','Precio']],
+      head: t.opciones ? [['Descripción','Medida','Precio']] : [['Descripción','Ancho','Alto','Área','Precio']],
       body: rows,
       styles: { fontSize: 9, cellPadding: 2.6 },
       headStyles: { fillColor: [217,118,43], textColor: 255 },
@@ -753,6 +795,7 @@ async function generarPDF(){
   // de todos los grupos. Una por cada tipo (frente / bajo mesada) que tenga
   // algún ítem sin cajón carbonero y/o cubiertero.
   const gruposConFaltantes = order.filter(tkey => {
+    if (TEMPLATES[tkey].opciones) return false;
     return groups[tkey].some(f => !((f.carbonero||0) > 0) || !((f.cubiertero||0) > 0));
   });
   if (gruposConFaltantes.length){
@@ -860,7 +903,10 @@ async function enviarASheets(cliente, fecha, grandTotal, groups, order){
   order.forEach(tkey => {
     resumen[tkey] = groups[tkey].map(f => {
       const c = calcularFrente(f);
-      return (f.desc || TEMPLATES[tkey].label) + ' (' + c.area.toFixed(2) + ' m²)';
+      const detalle = TEMPLATES[tkey].opciones
+        ? (c.items[0] ? c.items[0].label : '')
+        : c.area.toFixed(2) + ' m²';
+      return (f.desc || TEMPLATES[tkey].label) + ' (' + detalle + ')';
     }).join('; ');
   });
 
@@ -869,6 +915,7 @@ async function enviarASheets(cliente, fecha, grandTotal, groups, order){
     cliente: cliente || 'Sin nombre',
     frente: resumen['frente'] || '',
     bajomesada: resumen['bajomesada'] || '',
+    otro: resumen['parrillamodular'] || '',
     presupuesto: grandTotal,
     estado: 'Presupuesto enviado'
   };
