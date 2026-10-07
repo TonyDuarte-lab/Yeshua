@@ -507,10 +507,6 @@
         Registrar cada presupuesto en mi Google Sheet
       </label>
       <div class="field full"><label>URL del Web App de Sheets</label><input type="text" id="sheets-url" placeholder="https://script.google.com/macros/s/..." oninput="guardarSheetsUrl(this.value)"></div>
-      <label class="hist-toggle-row">
-        <input type="checkbox" id="sheets-sena" onchange="try{localStorage.setItem('sheets-sena', this.checked ? '1' : '0')}catch(e){}">
-        Al marcar "Aceptó presupuesto", cargar la seña del 50% en la planilla (necesita el script actualizado)
-      </label>
       <div class="pdf-msg" id="sheets-msg"></div>
     </div>
   </div>
@@ -1296,7 +1292,6 @@ function cargarConfigSheets(){
     const activado = localStorage.getItem('sheets-enabled') === '1';
     document.getElementById('sheets-url').value = url;
     document.getElementById('sheets-enabled').checked = activado;
-    document.getElementById('sheets-sena').checked = localStorage.getItem('sheets-sena') === '1';
   }catch(e){}
 }
 
@@ -1475,20 +1470,18 @@ function marcarHistorial(id, estado){
       h.fechaEntrega = isoLocal(entrega);
     }
   }
-  // En la planilla: aceptar = cargar la seña del 50%; desmarcar = sacarla.
-  if (h.estado === 'aceptado') avisarSheetsEstado(h, 'aceptado');
-  else if (estabaAceptado) avisarSheetsEstado(h, 'desmarcado');
+  // En la planilla: aceptar = el trabajo pasa a Trabajos con la seña del 50%;
+  // no aceptó / desmarcar = queda así en Presupuestos (y sale de Trabajos).
+  avisarSheetsEstado(h, h.estado, estabaAceptado);
   guardarHistorialArray();
   renderHistorial();
 }
 
-// Le avisa al Apps Script de la planilla que el presupuesto se aceptó (o se
-// desmarcó), para que cargue o borre el Adelanto y el Plazo de Entrega del
-// trabajo. El script busca el renglón por cliente y presupuesto.
-async function avisarSheetsEstado(h, accion){
-  // Sólo si el script de la planilla ya sabe manejar estos avisos: con el
-  // script viejo, el aviso se cargaría como un presupuesto nuevo.
-  if (!sheetsHabilitado() || !document.getElementById('sheets-sena').checked) return;
+// Le avisa al Apps Script de la planilla el estado del presupuesto
+// ('aceptado', 'rechazado' o 'pendiente'). El script lo busca por número
+// (o por cliente y monto en los presupuestos viejos sin número).
+async function avisarSheetsEstado(h, accion, estabaAceptado){
+  if (!sheetsHabilitado()) return;
   const url = document.getElementById('sheets-url').value.trim();
   const payload = {
     accion,
@@ -1496,7 +1489,9 @@ async function avisarSheetsEstado(h, accion){
     presupuesto: h.total,
     numero: h.numero || '',
     adelanto: accion === 'aceptado' ? Math.round(h.total / 2) : 0,
-    plazoEntrega: accion === 'aceptado' && h.fechaEntrega ? fechaCorta(h.fechaEntrega) : ''
+    plazoEntrega: accion === 'aceptado' && h.fechaEntrega ? fechaCorta(h.fechaEntrega) : '',
+    fechaAceptado: accion === 'aceptado' && h.fechaAceptado ? h.fechaAceptado : '',
+    estabaAceptado: !!estabaAceptado
   };
   try{
     await fetch(url, {
@@ -1505,7 +1500,9 @@ async function avisarSheetsEstado(h, accion){
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
     });
-    h.sheetsMsg = accion === 'aceptado' ? 'Seña del 50% enviada a tu planilla ✓' : 'Seña quitada de tu planilla ✓';
+    h.sheetsMsg = accion === 'aceptado' ? 'Pasado a Trabajos con la seña del 50% ✓'
+      : accion === 'rechazado' ? 'Marcado como no aceptado en tu planilla ✓'
+      : 'Actualizado en tu planilla ✓';
   }catch(e){
     h.sheetsMsg = 'No se pudo avisar a la planilla (¿sin internet?)';
   }
