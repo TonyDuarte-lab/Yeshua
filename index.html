@@ -462,8 +462,9 @@ const TEMPLATES = {
       { key:'manoobra', label:'Mano de obra', def:450000 },
       { key:'gastotaller', label:'Gasto taller', def:70000 },
     ],
-    // Porcentaje sobre el total de costos. Se suma al precio, pero el renglón
-    // sólo se ve en la app (el PDF muestra el precio final de cada ítem).
+    // Porcentaje sobre el total de costos (sin carbonero ni cubiertero, que son
+    // agregados a precio fijo). Se suma al precio, pero el renglón sólo se ve
+    // en la app (el PDF muestra el precio final de cada ítem).
     ganancia: { label:'Ganancia real', defPct:19 }
   },
   bajomesada: {
@@ -484,9 +485,9 @@ const TEMPLATES = {
       { key:'cubiertero', label:'Cubiertero', def:180000, qty:'cubiertero' },
     ],
     fixed: [
-      { key:'manoobra', label:'Mano de obra', def:150000 },
-      { key:'instalacion', label:'Instalación', def:100000 },
-    ]
+      { key:'manoobra', label:'Mano de obra e instalación', def:180000 },
+    ],
+    ganancia: { label:'Ganancia real', defPct:19 }
   },
   parrillamodular: {
     label: 'Parrilla Modular',
@@ -690,12 +691,15 @@ function calcularFrente(f){
     items.push({ label: it.label, value: sub });
     total += sub;
   });
+  // Carbonero y cubiertero son agregados a precio fijo: no llevan ganancia.
+  let sinGanancia = 0;
   t.perUnit.forEach(it => {
     const qty = f[it.qty] || 0;
     const v = val('v_'+f.template+'_'+it.key);
     const sub = qty * v;
     items.push({ label: it.label, value: sub });
     total += sub;
+    if (it.key === 'carbonero' || it.key === 'cubiertero') sinGanancia += sub;
   });
   t.fixed.forEach(it => {
     const v = val('v_'+f.template+'_'+it.key);
@@ -705,7 +709,7 @@ function calcularFrente(f){
   let ganancia = 0;
   if (t.ganancia){
     const pct = val('v_'+f.template+'_ganancia');
-    ganancia = total * pct / 100;
+    ganancia = (total - sinGanancia) * pct / 100;
     items.push({ label: t.ganancia.label + ' (' + pct + '%)', value: ganancia });
     total += ganancia;
   }
