@@ -871,8 +871,8 @@ async function preloadLogo(){
   }
 }
 
-// modo 'descargar': no abre el menú de compartir, baja el PDF directo
-// (lo usa el botón de WhatsApp, que abre el chat aparte).
+// modo 'descargar': no abre el menú de compartir, baja el PDF directo.
+// modo 'whatsapp': comparte el PDF junto con el mensaje armado para WhatsApp.
 async function generarPDF(modo){
   const msg = document.getElementById('pdf-msg');
   if (!frentes.length){
@@ -1070,7 +1070,9 @@ async function generarPDF(modo){
       await navigator.share({
         files: [pdfFile],
         title: 'Presupuesto',
-        text: cliente ? ('Presupuesto para ' + cliente) : 'Presupuesto'
+        text: modo === 'whatsapp'
+          ? textoWhatsApp()
+          : (cliente ? ('Presupuesto para ' + cliente) : 'Presupuesto')
       });
       compartido = true;
     }catch(e){
@@ -1127,11 +1129,18 @@ function enviarWhatsApp(){
     msg.textContent = 'Cargá al menos un frente antes de enviarlo.';
     return;
   }
+  // En el celular: se comparte el PDF con el mensaje y se elige WhatsApp
+  // en el menú (un link de WhatsApp no puede llevar archivos adjuntos).
+  const prueba = new File([''], 'presupuesto.pdf', { type: 'application/pdf' });
+  if (navigator.canShare && navigator.canShare({ files: [prueba] })){
+    msg.textContent = 'Elegí WhatsApp y después el contacto.';
+    generarPDF('whatsapp');
+    return;
+  }
+  // En la computadora: se abre el chat con el mensaje y se baja el PDF para adjuntarlo.
   const tel = telWhatsApp(document.getElementById('pdf-tel').value);
   const url = 'https://wa.me/' + tel + '?text=' + encodeURIComponent(textoWhatsApp());
-  // Se abre primero (todavía dentro del toque del usuario, si no el celular lo bloquea)
   window.open(url, '_blank');
-  // y se baja el PDF para adjuntarlo en el chat.
   generarPDF('descargar').then(() => {
     msg.textContent = 'PDF descargado ✓ Adjuntalo en el chat de WhatsApp.';
   });
