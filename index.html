@@ -289,6 +289,38 @@
     cursor: pointer;
   }
   .btn-pdf:active { background: var(--ember); }
+  .btn-wa {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+    background: #1f6f43;
+    border: 1px solid #25D366;
+    color: var(--text);
+    padding: 12px;
+    min-height: 48px;
+    border-radius: 3px;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  .btn-wa:active { background: #25D366; }
+  .agenda {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--line);
+  }
+  .agenda-title { font-size: 0.85rem; color: var(--text-dim); margin-bottom: 8px; }
+  .agenda-row { display: grid; grid-template-columns: 1fr 110px; gap: 8px; }
+  .agenda-row input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    color: var(--text);
+    padding: 10px;
+    min-height: 44px;
+    border-radius: 3px;
+    font-size: 16px;
+    color-scheme: dark;
+  }
   .btn-sec {
     display: block;
     width: 100%;
@@ -376,8 +408,18 @@
     <div class="section-body open" id="body-sec-pdf">
       <div class="field full"><label>Cliente (opcional)</label><input type="text" id="pdf-cliente" placeholder="Nombre del cliente" oninput="guardarBorrador()"></div>
       <div class="field full"><label>Email del cliente (opcional)</label><input type="email" id="pdf-email" inputmode="email" autocomplete="off" placeholder="cliente@ejemplo.com" oninput="guardarBorrador()"></div>
+      <div class="field full"><label>WhatsApp del cliente (opcional)</label><input type="text" id="pdf-tel" inputmode="tel" autocomplete="off" placeholder="11 2345 6789" oninput="guardarBorrador()"></div>
       <button class="btn-pdf" onclick="generarPDF()">Generar PDF para el cliente</button>
+      <button class="btn-wa" onclick="enviarWhatsApp()">Enviar por WhatsApp</button>
       <div class="pdf-msg" id="pdf-msg"></div>
+      <div class="agenda">
+        <div class="agenda-title">¿Aceptó el presupuesto? Agendá la instalación:</div>
+        <div class="agenda-row">
+          <input type="date" id="inst-fecha">
+          <input type="time" id="inst-hora" value="09:00">
+        </div>
+        <button class="btn-sec" onclick="agendarInstalacion()">Agendar en Google Calendar</button>
+      </div>
       <button class="btn-sec" onclick="nuevoPresupuesto()">Empezar un presupuesto nuevo</button>
     </div>
   </div>
@@ -570,7 +612,8 @@ function guardarBorrador(){
   escribirLS('borrador', {
     frentes, nextId,
     cliente: document.getElementById('pdf-cliente').value,
-    email: document.getElementById('pdf-email').value
+    email: document.getElementById('pdf-email').value,
+    tel: document.getElementById('pdf-tel').value
   });
 }
 
@@ -582,6 +625,7 @@ function cargarBorrador(){
   nextId = Math.max(b.nextId || 1, ...frentes.map(f => f.id + 1));
   document.getElementById('pdf-cliente').value = b.cliente || '';
   document.getElementById('pdf-email').value = b.email || '';
+  document.getElementById('pdf-tel').value = b.tel || '';
   render();
   return true;
 }
@@ -592,6 +636,8 @@ function nuevoPresupuesto(){
   nextId = 1;
   document.getElementById('pdf-cliente').value = '';
   document.getElementById('pdf-email').value = '';
+  document.getElementById('pdf-tel').value = '';
+  document.getElementById('inst-fecha').value = '';
   document.getElementById('pdf-msg').textContent = '';
   agregarFrente('frente');
 }
@@ -825,7 +871,9 @@ async function preloadLogo(){
   }
 }
 
-async function generarPDF(){
+// modo 'descargar': no abre el menú de compartir, baja el PDF directo
+// (lo usa el botón de WhatsApp, que abre el chat aparte).
+async function generarPDF(modo){
   const msg = document.getElementById('pdf-msg');
   if (!frentes.length){
     msg.textContent = 'Cargá al menos un frente antes de generar el PDF.';
@@ -1017,7 +1065,7 @@ async function generarPDF(){
   const pdfFile = new File([pdfBlob], nombreArchivo, { type: 'application/pdf' });
 
   let compartido = false;
-  if (navigator.canShare && navigator.canShare({ files: [pdfFile] })){
+  if (modo !== 'descargar' && navigator.canShare && navigator.canShare({ files: [pdfFile] })){
     try{
       await navigator.share({
         files: [pdfFile],
@@ -1044,6 +1092,91 @@ async function generarPDF(){
   if (sheetsHabilitado()){
     enviarASheets(cliente, fecha, grandTotal, groups, order);
   }
+}
+
+// ---------- WhatsApp ----------
+// Número argentino a formato internacional para wa.me: 11 2345 6789 -> 5491123456789
+function telWhatsApp(t){
+  let d = String(t || '').replace(/[^0-9]/g, '');
+  if (!d) return '';
+  if (d.startsWith('00')) d = d.slice(2);
+  if (d.startsWith('54')) return d;
+  if (d.startsWith('0')) d = d.slice(1);
+  // Con el 15 de celular escrito (11 15 2345 6789) quedan 12 dígitos: se lo saca.
+  if (d.length === 12) d = d.replace(/^(\d{2,4})15/, '$1');
+  return '549' + d;
+}
+
+function textoWhatsApp(){
+  const cliente = document.getElementById('pdf-cliente').value.trim();
+  let total = 0;
+  const lineas = frentes.map(f => {
+    const c = calcularFrente(f);
+    total += c.total;
+    return '• ' + (f.desc || TEMPLATES[f.template].label) + ': ' + fmt(c.total);
+  });
+  return (cliente ? 'Hola ' + cliente + '! ' : 'Hola! ') +
+    'Te paso el presupuesto de Diseño & Alma:\n\n' +
+    lineas.join('\n') + '\n\n*Total: ' + fmt(total) + '*\n\n' +
+    'Te adjunto el PDF con el detalle. Cualquier consulta, avisame.';
+}
+
+function enviarWhatsApp(){
+  const msg = document.getElementById('pdf-msg');
+  if (!frentes.length){
+    msg.textContent = 'Cargá al menos un frente antes de enviarlo.';
+    return;
+  }
+  const tel = telWhatsApp(document.getElementById('pdf-tel').value);
+  const url = 'https://wa.me/' + tel + '?text=' + encodeURIComponent(textoWhatsApp());
+  // Se abre primero (todavía dentro del toque del usuario, si no el celular lo bloquea)
+  window.open(url, '_blank');
+  // y se baja el PDF para adjuntarlo en el chat.
+  generarPDF('descargar').then(() => {
+    msg.textContent = 'PDF descargado ✓ Adjuntalo en el chat de WhatsApp.';
+  });
+}
+
+// ---------- Google Calendar ----------
+function agendarInstalacion(){
+  const msg = document.getElementById('pdf-msg');
+  const fecha = document.getElementById('inst-fecha').value;   // AAAA-MM-DD
+  const hora = document.getElementById('inst-hora').value || '09:00';
+  if (!fecha){
+    msg.textContent = 'Elegí la fecha de instalación.';
+    document.getElementById('inst-fecha').focus();
+    return;
+  }
+  const cliente = document.getElementById('pdf-cliente').value.trim();
+  const email = document.getElementById('pdf-email').value.trim();
+  const tel = document.getElementById('pdf-tel').value.trim();
+  const inicio = fecha.replace(/-/g, '') + 'T' + hora.replace(':', '') + '00';
+  const d = new Date(fecha + 'T' + hora);
+  d.setHours(d.getHours() + 3); // duración estimada: 3 horas
+  const p2 = n => String(n).padStart(2, '0');
+  const fin = d.getFullYear() + p2(d.getMonth()+1) + p2(d.getDate()) + 'T' + p2(d.getHours()) + p2(d.getMinutes()) + '00';
+
+  let total = 0;
+  const lineas = frentes.map(f => {
+    const c = calcularFrente(f);
+    total += c.total;
+    return '• ' + (f.desc || TEMPLATES[f.template].label) + ': ' + fmt(c.total);
+  });
+  const detalle = [
+    cliente ? 'Cliente: ' + cliente : '',
+    tel ? 'WhatsApp: ' + tel : '',
+    email ? 'Email: ' + email : '',
+    '',
+    ...lineas,
+    'Total: ' + fmt(total)
+  ].filter((l, i) => l || i === 3).join('\n');
+
+  const url = 'https://calendar.google.com/calendar/render?action=TEMPLATE' +
+    '&text=' + encodeURIComponent('Instalación' + (cliente ? ' – ' + cliente : '')) +
+    '&dates=' + inicio + '/' + fin +
+    '&ctz=America/Argentina/Buenos_Aires' +
+    '&details=' + encodeURIComponent(detalle);
+  window.open(url, '_blank');
 }
 
 // ---------- Conexión con Google Sheets (vía Apps Script) ----------
