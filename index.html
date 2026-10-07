@@ -248,6 +248,8 @@
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }
+  .total-bar .amt-wrap { display: flex; flex-direction: column; align-items: flex-end; }
+  .total-bar .gan { font-size: 0.78rem; color: var(--ok); }
   .total-bar .amt {
     font-family: 'Oswald', sans-serif;
     font-size: 1.5rem;
@@ -425,7 +427,10 @@
 
 <div class="total-bar">
   <span class="lbl">Total</span>
-  <span class="amt" id="total-general">$0</span>
+  <span class="amt-wrap">
+    <span class="amt" id="total-general">$0</span>
+    <span class="gan" id="ganancia-general"></span>
+  </span>
 </div>
 
 <script>
@@ -442,7 +447,7 @@ const TEMPLATES = {
       'Terminación con pintura horno'
     ],
     perM2: [
-      { key:'valor1', label:'Chapa y plegado', def:175000 },
+      { key:'valor1', label:'Chapa y plegado', def:185000 },
       { key:'valor2', label:'Pintura', def:52000 },
     ],
     perUnit: [
@@ -453,9 +458,14 @@ const TEMPLATES = {
     ],
     fixed: [
       { key:'comision', label:'Comisión', def:70000 },
-      { key:'logistica', label:'Logística', def:80000 },
-      { key:'manoobra', label:'Mano de obra', def:650000 },
-    ]
+      { key:'logistica', label:'Logística', def:120000 },
+      { key:'manoobra', label:'Mano de obra', def:450000 },
+      { key:'gastotaller', label:'Gasto taller', def:70000 },
+    ],
+    // Porcentaje sobre el total de costos (sin carbonero ni cubiertero, que son
+    // agregados a precio fijo). Se suma al precio, pero el renglón sólo se ve
+    // en la app (el PDF muestra el precio final de cada ítem).
+    ganancia: { label:'Ganancia real', defPct:19 }
   },
   bajomesada: {
     label: 'Bajo Mesada',
@@ -475,9 +485,9 @@ const TEMPLATES = {
       { key:'cubiertero', label:'Cubiertero', def:180000, qty:'cubiertero' },
     ],
     fixed: [
-      { key:'manoobra', label:'Mano de obra', def:150000 },
-      { key:'instalacion', label:'Instalación', def:100000 },
-    ]
+      { key:'manoobra', label:'Mano de obra e instalación', def:180000 },
+    ],
+    ganancia: { label:'Ganancia real', defPct:19 }
   },
   parrillamodular: {
     label: 'Parrilla Modular',
@@ -501,6 +511,10 @@ const TEMPLATES = {
     ]
   }
 };
+
+// Subir este número cuando cambien los precios por defecto de TEMPLATES:
+// así los celulares dejan de usar los precios viejos que tenían guardados.
+const VERSION_PRECIOS = 2;
 
 let frentes = [];
 let nextId = 1;
@@ -608,9 +622,16 @@ function buildValoresBaseHTML(){
     t.fixed.forEach(it => {
       html += `<label>${it.label}</label><input type="text" inputmode="numeric" id="v_${tkey}_${it.key}" value="${it.def}">`;
     });
+    if (t.ganancia){
+      html += `<label>${t.ganancia.label} (% sobre el total, no sale en el PDF)</label><input type="text" inputmode="numeric" id="v_${tkey}_ganancia" value="${t.ganancia.defPct}">`;
+    }
     html += `</div>`;
   });
   document.getElementById('valores-container').innerHTML = html;
+  if (leerLS('valores-base-version') !== VERSION_PRECIOS){
+    try{ localStorage.removeItem('valores-base'); }catch(e){}
+    escribirLS('valores-base-version', VERSION_PRECIOS);
+  }
   const guardados = leerLS('valores-base') || {};
   document.querySelectorAll('#valores-container input').forEach(inp => {
     if (guardados[inp.id] != null) inp.value = guardados[inp.id];
@@ -670,19 +691,29 @@ function calcularFrente(f){
     items.push({ label: it.label, value: sub });
     total += sub;
   });
+  // Carbonero y cubiertero son agregados a precio fijo: no llevan ganancia.
+  let sinGanancia = 0;
   t.perUnit.forEach(it => {
     const qty = f[it.qty] || 0;
     const v = val('v_'+f.template+'_'+it.key);
     const sub = qty * v;
     items.push({ label: it.label, value: sub });
     total += sub;
+    if (it.key === 'carbonero' || it.key === 'cubiertero') sinGanancia += sub;
   });
   t.fixed.forEach(it => {
     const v = val('v_'+f.template+'_'+it.key);
     items.push({ label: it.label, value: v });
     total += v;
   });
-  return { area, items, total };
+  let ganancia = 0;
+  if (t.ganancia){
+    const pct = val('v_'+f.template+'_ganancia');
+    ganancia = (total - sinGanancia) * pct / 100;
+    items.push({ label: t.ganancia.label + ' (' + pct + '%)', value: ganancia });
+    total += ganancia;
+  }
+  return { area, items, total, ganancia };
 }
 
 function templateOptionsHTML(selected){
@@ -753,9 +784,10 @@ function toggleDesglose(id){
 }
 
 function calcularTotales(){
-  let total = 0;
-  frentes.forEach(f => { total += calcularFrente(f).total; });
+  let total = 0, ganancia = 0;
+  frentes.forEach(f => { const c = calcularFrente(f); total += c.total; ganancia += c.ganancia || 0; });
   document.getElementById('total-general').textContent = fmt(total);
+  document.getElementById('ganancia-general').textContent = ganancia ? 'Tu ganancia: ' + fmt(ganancia) : '';
   const cards = document.querySelectorAll('.frente-card');
   cards.forEach((card, i) => {
     const f = frentes[i];
