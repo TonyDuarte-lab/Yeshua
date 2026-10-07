@@ -366,9 +366,54 @@
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
+    flex-wrap: wrap;
     gap: 8px;
   }
-  .hist-item .info { flex: 1; min-width: 0; }
+  .hist-item.aceptado { border-left-color: var(--ok); }
+  .hist-item.rechazado { border-left-color: var(--line); opacity: 0.7; }
+  .hist-item .info { flex: 1; min-width: 0; cursor: pointer; }
+  .hist-estado {
+    display: inline-block;
+    font-size: 0.72rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-top: 6px;
+    background: var(--bg);
+    color: var(--text-dim);
+  }
+  .hist-item.aceptado .hist-estado { color: var(--ok); }
+  .hist-panel {
+    flex-basis: 100%;
+    border-top: 1px dashed var(--line);
+    padding-top: 10px;
+    margin-top: 4px;
+  }
+  .hist-acciones { display: flex; gap: 8px; }
+  .hist-acciones button {
+    flex: 1;
+    min-height: 44px;
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--text);
+    border-radius: 3px;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+  .hist-acciones button.on-ok { border-color: var(--ok); color: var(--ok); }
+  .hist-acciones button.on-no { border-color: var(--ember); color: var(--ember); }
+  .hist-entrega { margin-top: 10px; font-size: 0.85rem; color: var(--text-dim); }
+  .hist-entrega input {
+    width: 100%;
+    margin: 6px 0 0;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    color: var(--text);
+    padding: 10px;
+    min-height: 44px;
+    border-radius: 3px;
+    font-size: 16px;
+    color-scheme: dark;
+  }
   .hist-item .cliente { font-size: 0.95rem; color: var(--text); }
   .hist-item .meta { font-size: 0.78rem; color: var(--text-dim); margin-top: 2px; }
   .hist-item .total { font-family: 'Oswald', sans-serif; font-size: 0.95rem; color: var(--ember); white-space: nowrap; }
@@ -1290,7 +1335,12 @@ function registrarEnHistorial(cliente, fecha, total, cantFrentes){
     fecha,
     cliente: cliente || 'Sin nombre',
     total,
-    cantFrentes
+    cantFrentes,
+    // Para armar el evento de Calendar si después lo acepta.
+    tel: document.getElementById('pdf-tel').value.trim(),
+    email: document.getElementById('pdf-email').value.trim(),
+    lineas: frentes.map(f => '• ' + (f.desc || TEMPLATES[f.template].label) + ': ' + fmt(calcularFrente(f).total)),
+    estado: 'pendiente'
   });
   guardarHistorialArray();
   renderHistorial();
@@ -1315,18 +1365,96 @@ function renderHistorial(){
   }
   cont.innerHTML = '';
   historial.forEach(h => {
+    const estado = h.estado || 'pendiente';
     const item = document.createElement('div');
-    item.className = 'hist-item';
+    item.className = 'hist-item ' + estado;
+    const etiqueta = estado === 'aceptado' ? '✓ Aceptado' + (h.fechaAceptado ? ' el ' + fechaCorta(h.fechaAceptado) : '')
+      : estado === 'rechazado' ? '✗ No aceptado' : 'Pendiente · tocá para marcar';
+    let panel = '';
+    if (histAbiertos.has(h.id)){
+      panel = `
+        <div class="hist-panel">
+          <div class="hist-acciones">
+            <button class="${estado === 'aceptado' ? 'on-ok' : ''}" onclick="marcarHistorial(${h.id},'aceptado')">✓ Aceptó presupuesto</button>
+            <button class="${estado === 'rechazado' ? 'on-no' : ''}" onclick="marcarHistorial(${h.id},'rechazado')">✗ No aceptó</button>
+          </div>
+          ${estado === 'aceptado' ? `
+          <div class="hist-entrega">
+            Entrega estimada (30 días desde que aceptó):
+            <input type="date" value="${h.fechaEntrega || ''}" onchange="cambiarEntrega(${h.id}, this.value)">
+            <button class="btn-sec" onclick="agendarEntrega(${h.id})">Agendar en Google Calendar</button>
+          </div>` : ''}
+        </div>`;
+    }
     item.innerHTML = `
-      <div class="info">
+      <div class="info" onclick="toggleHistorial(${h.id})">
         <div class="cliente">${h.cliente}</div>
         <div class="meta">${h.fecha} · ${h.cantFrentes} ítem(s)</div>
+        <span class="hist-estado">${etiqueta}</span>
       </div>
       <div class="total">${fmt(h.total)}</div>
       <button class="btn-del" onclick="eliminarHistorialItem(${h.id})">✕</button>
+      ${panel}
     `;
     cont.appendChild(item);
   });
+}
+
+// ---------- Estado de cada presupuesto del historial ----------
+const histAbiertos = new Set();
+const p2 = n => String(n).padStart(2, '0');
+function isoLocal(d){ return d.getFullYear() + '-' + p2(d.getMonth()+1) + '-' + p2(d.getDate()); }
+function fechaCorta(iso){ const [a, m, d] = iso.split('-'); return d + '/' + m + '/' + a; }
+
+function toggleHistorial(id){
+  if (histAbiertos.has(id)) histAbiertos.delete(id); else histAbiertos.add(id);
+  renderHistorial();
+}
+
+function marcarHistorial(id, estado){
+  const h = historial.find(x => x.id === id);
+  if (!h) return;
+  if (h.estado === estado){
+    h.estado = 'pendiente';   // tocar de nuevo el mismo botón lo desmarca
+  } else {
+    h.estado = estado;
+    if (estado === 'aceptado'){
+      const hoy = new Date();
+      h.fechaAceptado = isoLocal(hoy);
+      const entrega = new Date(hoy);
+      entrega.setDate(entrega.getDate() + 30);
+      h.fechaEntrega = isoLocal(entrega);
+    }
+  }
+  guardarHistorialArray();
+  renderHistorial();
+}
+
+function cambiarEntrega(id, valor){
+  const h = historial.find(x => x.id === id);
+  if (!h) return;
+  h.fechaEntrega = valor;
+  guardarHistorialArray();
+}
+
+// Evento de día completo en la fecha de entrega estimada.
+function agendarEntrega(id){
+  const h = historial.find(x => x.id === id);
+  if (!h || !h.fechaEntrega) return;
+  const dia = new Date(h.fechaEntrega + 'T12:00');
+  const sig = new Date(dia); sig.setDate(sig.getDate() + 1);
+  const ymd = d => isoLocal(d).replace(/-/g, '');
+  const contacto = ['Cliente: ' + h.cliente];
+  if (h.tel) contacto.push('WhatsApp: ' + h.tel);
+  if (h.email) contacto.push('Email: ' + h.email);
+  contacto.push('Presupuesto del ' + h.fecha + (h.fechaAceptado ? ', aceptado el ' + fechaCorta(h.fechaAceptado) : ''));
+  const detalle = contacto.join('\n') + '\n\n' + [...(h.lineas || []), 'Total: ' + fmt(h.total)].join('\n');
+  const url = 'https://calendar.google.com/calendar/render?action=TEMPLATE' +
+    '&text=' + encodeURIComponent('Entrega estimada – ' + h.cliente) +
+    '&dates=' + ymd(dia) + '/' + ymd(sig) +
+    '&ctz=America/Argentina/Buenos_Aires' +
+    '&details=' + encodeURIComponent(detalle);
+  window.open(url, '_blank');
 }
 
 // ---------- inicio ----------
