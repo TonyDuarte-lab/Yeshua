@@ -1,4 +1,4 @@
-const CACHE_NAME = "frente-parrilla-v2";
+const CACHE_NAME = "frente-parrilla-v3";
 const ASSETS = ["./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png", "./logo.png"];
 
 self.addEventListener("install", (e) => {
@@ -35,9 +35,17 @@ self.addEventListener("fetch", (e) => {
         .catch(() => caches.match(req))
     );
   } else {
-    // Para el resto de los archivos (iconos, manifest, logo): caché primero, mas rapido.
+    // Para el resto de los archivos (iconos, manifest, logo, tipografía): caché primero, mas rapido.
+    // La tipografía de Google se guarda la primera vez para que se vea igual sin conexión.
+    const esFuente = /fonts\.(googleapis|gstatic)\.com$/.test(new URL(req.url).hostname);
     e.respondWith(
-      caches.match(req).then((resp) => resp || fetch(req))
+      caches.match(req).then((resp) => resp || fetch(req).then((r) => {
+        if (esFuente && r && (r.ok || r.type === "opaque")) {
+          const copia = r.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, copia));
+        }
+        return r;
+      }))
     );
   }
 });

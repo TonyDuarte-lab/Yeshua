@@ -9,6 +9,9 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
@@ -52,7 +55,7 @@
     margin: 0;
     text-transform: uppercase;
   }
-  header span { font-size: 0.7rem; color: var(--text-dim); }
+  header span { font-size: 0.8rem; color: var(--text-dim); }
   header .logo {
     width: 42px;
     height: 42px;
@@ -73,14 +76,15 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 14px;
+    min-height: 48px;
+    padding: 12px 14px;
     background: var(--panel-2);
     cursor: pointer;
     user-select: none;
   }
   .section-head h2 {
     font-family: 'Oswald', 'Segoe UI', sans-serif;
-    font-size: 0.85rem;
+    font-size: 0.95rem;
     letter-spacing: 0.03em;
     text-transform: uppercase;
     margin: 0;
@@ -95,13 +99,13 @@
   .section-body.open { display: block; }
   .valores-grid {
     display: grid;
-    grid-template-columns: 1fr 100px;
+    grid-template-columns: 1fr 130px;
     gap: 8px 10px;
     align-items: center;
     margin-bottom: 6px;
   }
   .valores-grid label {
-    font-size: 0.82rem;
+    font-size: 0.9rem;
     color: var(--text-dim);
   }
   .valores-grid input {
@@ -109,7 +113,7 @@
   }
   .template-block-title {
     font-family: 'Oswald', 'Segoe UI', sans-serif;
-    font-size: 0.78rem;
+    font-size: 0.9rem;
     letter-spacing: 0.03em;
     text-transform: uppercase;
     color: var(--ember);
@@ -118,7 +122,7 @@
   .template-block-title:first-child { margin-top: 0; }
   .subgroup-title {
     grid-column: 1 / -1;
-    font-size: 0.68rem;
+    font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--text-dim);
@@ -128,15 +132,17 @@
   }
   .subgroup-title:first-child { border-top: none; margin-top: 0; padding-top: 0; }
 
-  input[type=number], input[type=text] {
+  input[type=text], input[type=email] {
     background: var(--bg);
     border: 1px solid var(--line);
     color: var(--text);
-    padding: 7px 8px;
+    padding: 10px;
     border-radius: 3px;
-    font-size: 0.9rem;
+    /* 16px o más: evita que el iPhone haga zoom al tocar un campo */
+    font-size: 16px;
+    min-height: 44px;
   }
-  input[type=number]:focus, input[type=text]:focus {
+  input[type=text]:focus, input[type=email]:focus, select:focus {
     outline: none;
     border-color: var(--ember);
   }
@@ -144,9 +150,10 @@
     background: var(--bg);
     border: 1px solid var(--line);
     color: var(--text);
-    padding: 7px 8px;
+    padding: 10px;
     border-radius: 3px;
-    font-size: 0.85rem;
+    font-size: 16px;
+    min-height: 44px;
   }
 
   .frente-card {
@@ -171,9 +178,9 @@
     border: 1px solid var(--line);
     color: var(--text-dim);
     border-radius: 3px;
-    width: 30px;
-    height: 30px;
-    font-size: 0.9rem;
+    width: 44px;
+    height: 44px;
+    font-size: 1rem;
     cursor: pointer;
     flex-shrink: 0;
   }
@@ -190,13 +197,13 @@
   }
   .field label {
     display: block;
-    font-size: 0.68rem;
+    font-size: 0.75rem;
     color: var(--text-dim);
     text-transform: uppercase;
     letter-spacing: 0.03em;
-    margin-bottom: 3px;
+    margin-bottom: 4px;
   }
-  .field input { width: 100%; }
+  .field input, .field select { width: 100%; }
 
   .frente-total {
     display: flex;
@@ -206,19 +213,21 @@
     padding-top: 10px;
     border-top: 1px dashed var(--line);
   }
-  .frente-total .label { font-size: 0.75rem; color: var(--text-dim); }
+  .frente-total .label { font-size: 0.85rem; color: var(--text-dim); }
   .frente-total .val { font-family: 'Oswald', sans-serif; font-size: 1.05rem; color: var(--ember); }
 
-  .btn-add-row { display: flex; gap: 8px; margin-top: 4px; }
+  .btn-add-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
   .btn-add {
     flex: 1;
     display: block;
     background: transparent;
     border: 1px dashed var(--steel);
     color: var(--steel);
+    min-width: 120px;
+    min-height: 44px;
     padding: 10px;
     border-radius: 3px;
-    font-size: 0.8rem;
+    font-size: 0.9rem;
     cursor: pointer;
   }
   .btn-add:active { border-color: var(--ember); color: var(--ember); }
@@ -245,7 +254,7 @@
     color: var(--ember);
   }
   .desglose {
-    font-size: 0.72rem;
+    font-size: 0.85rem;
     color: var(--text-dim);
     margin-top: 8px;
     line-height: 1.7;
@@ -254,9 +263,11 @@
   }
   .desglose b { color: var(--text); }
   .desglose-toggle {
-    font-size: 0.7rem;
+    display: inline-block;
+    font-size: 0.85rem;
     color: var(--steel);
-    margin-top: 8px;
+    margin-top: 4px;
+    padding: 8px 0;
     cursor: pointer;
     user-select: none;
   }
@@ -269,24 +280,48 @@
     background: var(--ember-dim);
     border: 1px solid var(--ember);
     color: var(--text);
-    padding: 10px;
+    padding: 12px;
+    min-height: 48px;
     border-radius: 3px;
-    font-size: 0.85rem;
+    font-size: 1rem;
     cursor: pointer;
   }
   .btn-pdf:active { background: var(--ember); }
-  .pdf-msg { font-size: 0.72rem; color: var(--text-dim); margin-top: 8px; min-height: 1em; }
+  .btn-sec {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--text-dim);
+    padding: 10px;
+    min-height: 44px;
+    border-radius: 3px;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+  .btn-sec:active { border-color: var(--ember); color: var(--ember); }
+  .config-title {
+    font-family: 'Oswald', 'Segoe UI', sans-serif;
+    font-size: 0.8rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin: 26px 0 8px;
+  }
+  .pdf-msg { font-size: 0.85rem; color: var(--text-dim); margin-top: 8px; min-height: 1em; }
 
   .hist-toggle-row {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 0.8rem;
+    font-size: 0.9rem;
     color: var(--text-dim);
     margin-bottom: 10px;
+    padding: 6px 0;
     cursor: pointer;
   }
-  .hist-toggle-row input { width: 16px; height: 16px; flex-shrink: 0; }
+  .hist-toggle-row input { width: 22px; height: 22px; flex-shrink: 0; accent-color: var(--ember); }
   .hist-item {
     background: var(--panel-2);
     border: 1px solid var(--line);
@@ -300,10 +335,10 @@
     gap: 8px;
   }
   .hist-item .info { flex: 1; min-width: 0; }
-  .hist-item .cliente { font-size: 0.88rem; color: var(--text); }
-  .hist-item .meta { font-size: 0.68rem; color: var(--text-dim); margin-top: 2px; }
+  .hist-item .cliente { font-size: 0.95rem; color: var(--text); }
+  .hist-item .meta { font-size: 0.78rem; color: var(--text-dim); margin-top: 2px; }
   .hist-item .total { font-family: 'Oswald', sans-serif; font-size: 0.95rem; color: var(--ember); white-space: nowrap; }
-  .hist-empty { font-size: 0.78rem; color: var(--text-dim); padding: 8px 0; }
+  .hist-empty { font-size: 0.85rem; color: var(--text-dim); padding: 8px 0; }
 </style>
 </head>
 <body>
@@ -315,16 +350,6 @@
     </div>
     <img class="logo" src="logo.png" alt="Diseño &amp; Alma">
   </header>
-
-  <div class="section" id="sec-valores">
-    <div class="section-head" onclick="toggleSection('sec-valores')">
-      <h2>Valores base</h2>
-      <span class="chevron" id="chev-sec-valores">▶</span>
-    </div>
-    <div class="section-body" id="body-sec-valores">
-      <div id="valores-container"></div>
-    </div>
-  </div>
 
   <div class="section" id="sec-frentes">
     <div class="section-head" onclick="toggleSection('sec-frentes')">
@@ -347,10 +372,37 @@
       <span class="chevron open" id="chev-sec-pdf">▶</span>
     </div>
     <div class="section-body open" id="body-sec-pdf">
-      <div class="field full"><label>Cliente (opcional)</label><input type="text" id="pdf-cliente" placeholder="Nombre del cliente"></div>
-      <div class="field full"><label>Email del cliente (opcional)</label><input type="text" id="pdf-email" placeholder="cliente@ejemplo.com"></div>
+      <div class="field full"><label>Cliente (opcional)</label><input type="text" id="pdf-cliente" placeholder="Nombre del cliente" oninput="guardarBorrador()"></div>
+      <div class="field full"><label>Email del cliente (opcional)</label><input type="email" id="pdf-email" inputmode="email" autocomplete="off" placeholder="cliente@ejemplo.com" oninput="guardarBorrador()"></div>
       <button class="btn-pdf" onclick="generarPDF()">Generar PDF para el cliente</button>
       <div class="pdf-msg" id="pdf-msg"></div>
+      <button class="btn-sec" onclick="nuevoPresupuesto()">Empezar un presupuesto nuevo</button>
+    </div>
+  </div>
+
+  <div class="section" id="sec-historial">
+    <div class="section-head" onclick="toggleSection('sec-historial')">
+      <h2>Historial</h2>
+      <span class="chevron" id="chev-sec-historial">▶</span>
+    </div>
+    <div class="section-body" id="body-sec-historial">
+      <label class="hist-toggle-row">
+        <input type="checkbox" id="hist-enabled" onchange="onHistToggle(this.checked)">
+        Guardar en este celular cada presupuesto que genere
+      </label>
+      <div id="historial-list"></div>
+    </div>
+  </div>
+
+  <div class="config-title">Configuración</div>
+  <div class="section" id="sec-valores">
+    <div class="section-head" onclick="toggleSection('sec-valores')">
+      <h2>Valores base</h2>
+      <span class="chevron" id="chev-sec-valores">▶</span>
+    </div>
+    <div class="section-body" id="body-sec-valores">
+      <div id="valores-container"></div>
+      <button class="btn-sec" onclick="restaurarValoresBase()">Volver a los precios originales</button>
     </div>
   </div>
 
@@ -369,19 +421,6 @@
     </div>
   </div>
 
-  <div class="section" id="sec-historial">
-    <div class="section-head" onclick="toggleSection('sec-historial')">
-      <h2>Historial</h2>
-      <span class="chevron" id="chev-sec-historial">▶</span>
-    </div>
-    <div class="section-body" id="body-sec-historial">
-      <label class="hist-toggle-row">
-        <input type="checkbox" id="hist-enabled" onchange="onHistToggle(this.checked)">
-        Guardar en este celular cada presupuesto que genere
-      </label>
-      <div id="historial-list"></div>
-    </div>
-  </div>
 </div>
 
 <div class="total-bar">
@@ -475,9 +514,72 @@ function fmt(n){
   return '$' + Math.round(n).toLocaleString('es-AR');
 }
 
+// Medidas y cantidades: acepta coma o punto como decimal ("1,50" o "1.50").
+function num(v){
+  return parseFloat(String(v == null ? '' : v).replace(/\s/g,'').replace(',', '.')) || 0;
+}
+// Precios: son pesos enteros, así que se ignoran puntos y comas de miles ("175.000").
+function precio(v){
+  return parseInt(String(v == null ? '' : v).replace(/[^0-9]/g,''), 10) || 0;
+}
+function mostrarNum(n){
+  return n ? String(n).replace('.', ',') : '';
+}
+
 function val(id){
   const el = document.getElementById(id);
-  return el ? (parseFloat(el.value) || 0) : 0;
+  return el ? precio(el.value) : 0;
+}
+
+// ---------- Guardado en el dispositivo (precios y presupuesto en curso) ----------
+function leerLS(clave){
+  try{ const raw = localStorage.getItem(clave); return raw ? JSON.parse(raw) : null; }catch(e){ return null; }
+}
+function escribirLS(clave, valor){
+  try{ localStorage.setItem(clave, JSON.stringify(valor)); }catch(e){}
+}
+
+function guardarValoresBase(){
+  const valores = {};
+  document.querySelectorAll('#valores-container input').forEach(inp => { valores[inp.id] = precio(inp.value); });
+  escribirLS('valores-base', valores);
+}
+
+function restaurarValoresBase(){
+  if (!confirm('¿Volver todos los precios a los valores originales?')) return;
+  try{ localStorage.removeItem('valores-base'); }catch(e){}
+  buildValoresBaseHTML();
+  calcularTotales();
+}
+
+function guardarBorrador(){
+  escribirLS('borrador', {
+    frentes, nextId,
+    cliente: document.getElementById('pdf-cliente').value,
+    email: document.getElementById('pdf-email').value
+  });
+}
+
+function cargarBorrador(){
+  const b = leerLS('borrador');
+  if (!b || !Array.isArray(b.frentes) || !b.frentes.length) return false;
+  frentes = b.frentes.filter(f => TEMPLATES[f.template]);
+  if (!frentes.length) return false;
+  nextId = Math.max(b.nextId || 1, ...frentes.map(f => f.id + 1));
+  document.getElementById('pdf-cliente').value = b.cliente || '';
+  document.getElementById('pdf-email').value = b.email || '';
+  render();
+  return true;
+}
+
+function nuevoPresupuesto(){
+  if (!confirm('¿Borrar los ítems y el cliente cargados y empezar de cero? Los precios base no se tocan.')) return;
+  frentes = [];
+  nextId = 1;
+  document.getElementById('pdf-cliente').value = '';
+  document.getElementById('pdf-email').value = '';
+  document.getElementById('pdf-msg').textContent = '';
+  agregarFrente('frente');
 }
 
 // ---------- Construir "Valores base" dinámicamente a partir de TEMPLATES ----------
@@ -489,28 +591,30 @@ function buildValoresBaseHTML(){
     if (t.opciones){
       html += `<div class="subgroup-title">Opciones (precio por rango de medida)</div>`;
       t.opciones.forEach((op, i) => {
-        html += `<label>${op.label}</label><input type="number" id="v_${tkey}_opcion${i}" value="${op.valor}">`;
+        html += `<label>${op.label}</label><input type="text" inputmode="numeric" id="v_${tkey}_opcion${i}" value="${op.valor}">`;
       });
       html += `</div>`;
       return;
     }
     html += `<div class="subgroup-title">Por m²</div>`;
     t.perM2.forEach(it => {
-      html += `<label>${it.label}</label><input type="number" id="v_${tkey}_${it.key}" value="${it.def}">`;
+      html += `<label>${it.label}</label><input type="text" inputmode="numeric" id="v_${tkey}_${it.key}" value="${it.def}">`;
     });
     html += `<div class="subgroup-title">Por unidad</div>`;
     t.perUnit.forEach(it => {
-      html += `<label>${it.label}</label><input type="number" id="v_${tkey}_${it.key}" value="${it.def}">`;
+      html += `<label>${it.label}</label><input type="text" inputmode="numeric" id="v_${tkey}_${it.key}" value="${it.def}">`;
     });
     html += `<div class="subgroup-title">Fijos (por frente)</div>`;
     t.fixed.forEach(it => {
-      html += `<label>${it.label}</label><input type="number" id="v_${tkey}_${it.key}" value="${it.def}">`;
+      html += `<label>${it.label}</label><input type="text" inputmode="numeric" id="v_${tkey}_${it.key}" value="${it.def}">`;
     });
     html += `</div>`;
   });
   document.getElementById('valores-container').innerHTML = html;
+  const guardados = leerLS('valores-base') || {};
   document.querySelectorAll('#valores-container input').forEach(inp => {
-    inp.addEventListener('input', calcularTotales);
+    if (guardados[inp.id] != null) inp.value = guardados[inp.id];
+    inp.addEventListener('input', () => { calcularTotales(); guardarValoresBase(); });
   });
 }
 
@@ -527,6 +631,8 @@ function agregarFrente(template){
 }
 
 function eliminarFrente(id){
+  const f = frentes.find(f => f.id === id);
+  if (!f || !confirm('¿Borrar "' + (f.desc || 'este ítem') + '"?')) return;
   frentes = frentes.filter(f => f.id !== id);
   render();
 }
@@ -534,7 +640,7 @@ function eliminarFrente(id){
 function actualizarFrente(id, campo, valor){
   const f = frentes.find(f => f.id === id);
   if (!f) return;
-  f[campo] = campo === 'desc' ? valor : (parseFloat(valor) || 0);
+  f[campo] = campo === 'desc' ? valor : num(valor);
   calcularTotales();
 }
 
@@ -606,13 +712,13 @@ function render(){
       totalInfoHTML = `<span class="label">${calc.items[0] ? calc.items[0].label : ''}</span><span class="val">${fmt(calc.total)}</span>`;
     } else {
       medidasHTML = `
-        <div class="field"><label>Ancho (m)</label><input type="number" step="0.01" value="${f.ancho||''}" oninput="actualizarFrente(${f.id},'ancho',this.value)"></div>
-        <div class="field"><label>Alto (m)</label><input type="number" step="0.01" value="${f.alto||''}" oninput="actualizarFrente(${f.id},'alto',this.value)"></div>
+        <div class="field"><label>Ancho (m)</label><input type="text" inputmode="decimal" placeholder="0,00" value="${mostrarNum(f.ancho)}" oninput="actualizarFrente(${f.id},'ancho',this.value)"></div>
+        <div class="field"><label>Alto (m)</label><input type="text" inputmode="decimal" placeholder="0,00" value="${mostrarNum(f.alto)}" oninput="actualizarFrente(${f.id},'alto',this.value)"></div>
       `;
       t.perUnit.forEach(it => {
-        qtyFieldsHTML += `<div class="field"><label>Cant. ${it.label}</label><input type="number" value="${f[it.qty]||''}" oninput="actualizarFrente(${f.id},'${it.qty}',this.value)"></div>`;
+        qtyFieldsHTML += `<div class="field"><label>Cant. ${it.label}</label><input type="text" inputmode="numeric" placeholder="0" value="${mostrarNum(f[it.qty])}" oninput="actualizarFrente(${f.id},'${it.qty}',this.value)"></div>`;
       });
-      totalInfoHTML = `<span class="label">Área: ${calc.area.toFixed(2)} m²</span><span class="val">${fmt(calc.total)}</span>`;
+      totalInfoHTML = `<span class="label">Área: ${calc.area.toFixed(2).replace('.', ',')} m²</span><span class="val">${fmt(calc.total)}</span>`;
     }
 
     card.innerHTML = `
@@ -658,10 +764,16 @@ function calcularTotales(){
     const valSpan = card.querySelector('.frente-total .val');
     const labelSpan = card.querySelector('.frente-total .label');
     if (valSpan) valSpan.textContent = fmt(calc.total);
-    if (labelSpan) labelSpan.textContent = 'Área: ' + calc.area.toFixed(2) + ' m²';
+    if (labelSpan){
+      const t = TEMPLATES[f.template] || TEMPLATES.frente;
+      labelSpan.textContent = t.opciones
+        ? (calc.items[0] ? calc.items[0].label : '')
+        : 'Área: ' + calc.area.toFixed(2).replace('.', ',') + ' m²';
+    }
     const desgloseDiv = document.getElementById('desglose-'+f.id);
     if (desgloseDiv) desgloseDiv.innerHTML = desgloseHTML(calc);
   });
+  guardarBorrador();
 }
 
 // ---------- PDF para el cliente (sin precios de insumos ni mano de obra) ----------
@@ -1011,6 +1123,7 @@ function registrarEnHistorial(cliente, fecha, total, cantFrentes){
 }
 
 function eliminarHistorialItem(id){
+  if (!confirm('¿Borrar este presupuesto del historial?')) return;
   historial = historial.filter(h => h.id !== id);
   guardarHistorialArray();
   renderHistorial();
@@ -1044,7 +1157,7 @@ function renderHistorial(){
 
 // ---------- inicio ----------
 buildValoresBaseHTML();
-agregarFrente('frente');
+if (!cargarBorrador()) agregarFrente('frente');
 preloadLogo();
 cargarHistorial();
 cargarConfigSheets();
