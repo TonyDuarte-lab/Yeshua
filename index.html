@@ -492,6 +492,7 @@
     <div class="section-body" id="body-sec-valores">
       <div id="valores-container"></div>
       <button class="btn-sec" onclick="restaurarValoresBase()">Volver a los precios originales</button>
+      <div class="field full" style="margin-top:14px"><label>Próximo N° de presupuesto</label><input type="text" inputmode="numeric" id="nro-proximo" oninput="guardarProximoNumero(this.value)"></div>
     </div>
   </div>
 
@@ -916,6 +917,24 @@ async function preloadLogo(){
   }
 }
 
+// ---------- Numeración y condiciones del presupuesto ----------
+const DIAS_VALIDEZ = 10;
+function proximoNumero(){
+  try{ return parseInt(localStorage.getItem('nro-proximo'), 10) || 1; }catch(e){ return 1; }
+}
+function guardarProximoNumero(v){
+  const n = parseInt(String(v).replace(/[^0-9]/g, ''), 10);
+  if (n > 0){ try{ localStorage.setItem('nro-proximo', String(n)); }catch(e){} }
+}
+function tomarNumero(){
+  const n = proximoNumero();
+  try{ localStorage.setItem('nro-proximo', String(n + 1)); }catch(e){}
+  const campo = document.getElementById('nro-proximo');
+  if (campo) campo.value = n + 1;
+  return n;
+}
+function formatoNumero(n){ return 'N° ' + String(n).padStart(4, '0'); }
+
 // modo 'descargar': no abre el menú de compartir, baja el PDF directo.
 // modo 'whatsapp': comparte el PDF junto con el mensaje armado para WhatsApp.
 async function generarPDF(modo){
@@ -945,9 +964,14 @@ async function generarPDF(modo){
     try { doc.addImage(logoDataUrl, 'PNG', marginX, y-6, 18, 18); } catch(e){}
   }
   doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.setTextColor(30,30,30);
-  doc.text('Presupuesto', marginX+24, y);
+  const numero = tomarNumero();
+  doc.text('Presupuesto ' + formatoNumero(numero), marginX+24, y);
   doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(120,120,120);
-  const fecha = new Date().toLocaleDateString('es-AR');
+  const hoy = new Date();
+  const fecha = hoy.toLocaleDateString('es-AR');
+  const vence = new Date(hoy); vence.setDate(vence.getDate() + DIAS_VALIDEZ);
+  const venceTexto = vence.toLocaleDateString('es-AR');
+  doc.text('Válido por ' + DIAS_VALIDEZ + ' días (hasta el ' + venceTexto + ')', marginX+24, y+5);
   doc.text('Fecha: ' + fecha, rightX, y-2, { align:'right' });
   const cliente = document.getElementById('pdf-cliente').value.trim();
   let infoY = y + 4;
@@ -1104,8 +1128,23 @@ async function generarPDF(modo){
   doc.line(marginX, y-4, rightX, y-4);
   doc.setFont('helvetica','bold'); doc.setFontSize(12.5); doc.setTextColor(30,30,30);
   doc.text('TOTAL: ' + fmt(grandTotal), rightX, y+3, { align:'right' });
+  y += 13;
 
-  const nombreArchivo = 'presupuesto' + (cliente ? '-'+cliente.replace(/\s+/g,'_') : '') + '.pdf';
+  // Condiciones comerciales
+  if (y > 262){ doc.addPage(); y = 20; }
+  const mitad = Math.round(grandTotal / 2);
+  doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(30,30,30);
+  doc.text('Forma de pago', marginX, y);
+  y += 5.5;
+  doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(60,60,60);
+  doc.text('•  Seña del 50% al iniciar el trabajo: ' + fmt(mitad), marginX, y); y += 4.8;
+  doc.text('•  50% restante al finalizar: ' + fmt(grandTotal - mitad), marginX, y); y += 4.8;
+  const demora = doc.splitTextToSize('•  Una vez abonado, el trabajo tiene una demora de instalación de 30 días aproximadamente.', rightX - marginX);
+  doc.text(demora, marginX, y); y += 4.8 * demora.length + 2.2;
+  doc.setFontSize(8.5); doc.setTextColor(120,120,120);
+  doc.text(doc.splitTextToSize('Presupuesto válido por ' + DIAS_VALIDEZ + ' días, hasta el ' + venceTexto + '. Pasada esa fecha, el valor podría modificarse.', rightX - marginX), marginX, y);
+
+  const nombreArchivo = 'presupuesto-' + String(numero).padStart(4, '0') + (cliente ? '-'+cliente.replace(/\s+/g,'_') : '') + '.pdf';
   const pdfBlob = doc.output('blob');
   const pdfFile = new File([pdfBlob], nombreArchivo, { type: 'application/pdf' });
 
@@ -1116,7 +1155,7 @@ async function generarPDF(modo){
         files: [pdfFile],
         title: 'Presupuesto',
         text: modo === 'whatsapp'
-          ? textoWhatsApp()
+          ? textoWhatsApp(numero)
           : (cliente ? ('Presupuesto para ' + cliente) : 'Presupuesto')
       });
       compartido = true;
@@ -1133,11 +1172,11 @@ async function generarPDF(modo){
   setTimeout(() => { msg.textContent = ''; }, 2500);
 
   if (historialHabilitado()){
-    registrarEnHistorial(cliente, fecha, grandTotal, frentes.length);
+    registrarEnHistorial(cliente, fecha, grandTotal, frentes.length, numero);
   }
 
   if (sheetsHabilitado()){
-    enviarASheets(cliente, fecha, grandTotal, groups, order);
+    enviarASheets(cliente, fecha, grandTotal, groups, order, numero);
   }
 }
 
@@ -1154,7 +1193,7 @@ function telWhatsApp(t){
   return '549' + d;
 }
 
-function textoWhatsApp(){
+function textoWhatsApp(numero){
   const cliente = document.getElementById('pdf-cliente').value.trim();
   let total = 0;
   const lineas = frentes.map(f => {
@@ -1163,8 +1202,9 @@ function textoWhatsApp(){
     return '• ' + (f.desc || TEMPLATES[f.template].label) + ': ' + fmt(c.total);
   });
   return (cliente ? 'Hola ' + cliente + '! ' : 'Hola! ') +
-    'Te paso el presupuesto de Diseño & Alma:\n\n' +
+    'Te paso el presupuesto ' + formatoNumero(numero || proximoNumero()) + ' de Diseño & Alma:\n\n' +
     lineas.join('\n') + '\n\n*Total: ' + fmt(total) + '*\n\n' +
+    'Seña del 50% al iniciar y 50% al finalizar. Válido por ' + DIAS_VALIDEZ + ' días.\n' +
     'Te adjunto el PDF con el detalle. Cualquier consulta, avisame.';
 }
 
@@ -1255,7 +1295,7 @@ function cargarConfigSheets(){
   }catch(e){}
 }
 
-async function enviarASheets(cliente, fecha, grandTotal, groups, order){
+async function enviarASheets(cliente, fecha, grandTotal, groups, order, numero){
   const msg = document.getElementById('sheets-msg');
   const url = document.getElementById('sheets-url').value.trim();
   if (!url) return;
@@ -1279,6 +1319,7 @@ async function enviarASheets(cliente, fecha, grandTotal, groups, order){
     bajomesada: resumen['bajomesada'] || '',
     otro: resumen['parrillamodular'] || '',
     presupuesto: grandTotal,
+    numero: numero,
     estado: 'Presupuesto enviado'
   };
 
@@ -1329,9 +1370,10 @@ function guardarHistorialArray(){
   }
 }
 
-function registrarEnHistorial(cliente, fecha, total, cantFrentes){
+function registrarEnHistorial(cliente, fecha, total, cantFrentes, numero){
   historial.unshift({
     id: Date.now(),
+    numero,
     fecha,
     cliente: cliente || 'Sin nombre',
     total,
@@ -1389,7 +1431,7 @@ function renderHistorial(){
     item.innerHTML = `
       <div class="info" onclick="toggleHistorial(${h.id})">
         <div class="cliente">${h.cliente}</div>
-        <div class="meta">${h.fecha} · ${h.cantFrentes} ítem(s)</div>
+        <div class="meta">${h.numero ? formatoNumero(h.numero) + ' · ' : ''}${h.fecha} · ${h.cantFrentes} ítem(s)</div>
         <span class="hist-estado">${etiqueta}</span>
       </div>
       <div class="total">${fmt(h.total)}</div>
@@ -1447,7 +1489,7 @@ function agendarEntrega(id){
   const contacto = ['Cliente: ' + h.cliente];
   if (h.tel) contacto.push('WhatsApp: ' + h.tel);
   if (h.email) contacto.push('Email: ' + h.email);
-  contacto.push('Presupuesto del ' + h.fecha + (h.fechaAceptado ? ', aceptado el ' + fechaCorta(h.fechaAceptado) : ''));
+  contacto.push('Presupuesto ' + (h.numero ? formatoNumero(h.numero) + ' ' : '') + 'del ' + h.fecha + (h.fechaAceptado ? ', aceptado el ' + fechaCorta(h.fechaAceptado) : ''));
   const detalle = contacto.join('\n') + '\n\n' + [...(h.lineas || []), 'Total: ' + fmt(h.total)].join('\n');
   const url = 'https://calendar.google.com/calendar/render?action=TEMPLATE' +
     '&text=' + encodeURIComponent('Entrega estimada – ' + h.cliente) +
@@ -1463,6 +1505,7 @@ if (!cargarBorrador()) agregarFrente('frente');
 preloadLogo();
 cargarHistorial();
 cargarConfigSheets();
+document.getElementById('nro-proximo').value = proximoNumero();
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
