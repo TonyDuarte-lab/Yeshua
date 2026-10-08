@@ -401,6 +401,7 @@
   }
   .hist-acciones button.on-ok { border-color: var(--ok); color: var(--ok); }
   .hist-acciones button.on-no { border-color: var(--ember); color: var(--ember); }
+  .hist-acciones.pago { margin-top: 10px; }
   .hist-entrega { margin-top: 10px; font-size: 0.85rem; color: var(--text-dim); }
   .hist-entrega input {
     width: 100%;
@@ -1427,7 +1428,8 @@ function renderHistorial(){
     const estado = h.estado || 'pendiente';
     const item = document.createElement('div');
     item.className = 'hist-item ' + estado;
-    const etiqueta = estado === 'aceptado' ? '✓ Aceptado' + (h.fechaAceptado ? ' el ' + fechaCorta(h.fechaAceptado) : '')
+    const etiqueta = estado === 'aceptado' && h.pagado ? '✓ Abonado' + (h.fechaPagado ? ' el ' + fechaCorta(h.fechaPagado) : '')
+      : estado === 'aceptado' ? '✓ Aceptado' + (h.fechaAceptado ? ' el ' + fechaCorta(h.fechaAceptado) : '')
       : estado === 'rechazado' ? '✗ No aceptado' : 'Pendiente · tocá para marcar';
     let panel = '';
     if (histAbiertos.has(h.id)){
@@ -1442,6 +1444,9 @@ function renderHistorial(){
             Entrega estimada (30 días desde que aceptó):
             <input type="date" value="${h.fechaEntrega || ''}" onchange="cambiarEntrega(${h.id}, this.value)">
             ${sheetsHabilitado() ? '' : `<button class="btn-sec" onclick="agendarEntrega(${h.id})">Agendar en Google Calendar</button>`}
+          </div>
+          <div class="hist-acciones pago">
+            <button class="${h.pagado ? 'on-ok' : ''}" onclick="marcarPagado(${h.id})">💰 Total pago / Finalizado</button>
           </div>` : ''}
           ${h.sheetsMsg ? `<div class="hist-entrega">${h.sheetsMsg}</div>` : ''}
         </div>`;
@@ -1477,7 +1482,9 @@ function marcarHistorial(id, estado){
   const estabaAceptado = h.estado === 'aceptado';
   if (h.estado === estado){
     h.estado = 'pendiente';   // tocar de nuevo el mismo botón lo desmarca
+    h.pagado = false;
   } else {
+    if (estado !== 'aceptado') h.pagado = false;
     h.estado = estado;
     if (estado === 'aceptado'){
       const hoy = new Date();
@@ -1494,6 +1501,19 @@ function marcarHistorial(id, estado){
   renderHistorial();
 }
 
+// Cuando el cliente terminó de pagar: en la planilla queda "Abonado"
+// (Adelanto = total, saldo en 0) con la fecha de hoy como entrega real.
+// Tocarlo de nuevo lo vuelve a la seña del 50%.
+function marcarPagado(id){
+  const h = historial.find(x => x.id === id);
+  if (!h || h.estado !== 'aceptado') return;
+  h.pagado = !h.pagado;
+  h.fechaPagado = h.pagado ? isoLocal(new Date()) : '';
+  avisarSheetsEstado(h, h.pagado ? 'pagado' : 'nopagado');
+  guardarHistorialArray();
+  renderHistorial();
+}
+
 // Le avisa al Apps Script de la planilla el estado del presupuesto
 // ('aceptado', 'rechazado' o 'pendiente'). El script lo busca por número
 // (o por cliente y monto en los presupuestos viejos sin número).
@@ -1505,7 +1525,9 @@ async function avisarSheetsEstado(h, accion, estabaAceptado){
     cliente: h.cliente,
     presupuesto: h.total,
     numero: h.numero || '',
-    adelanto: accion === 'aceptado' ? Math.round(h.total / 2) : 0,
+    adelanto: accion === 'pagado' || (accion === 'aceptado' && h.pagado) ? h.total
+      : accion === 'aceptado' || accion === 'nopagado' ? Math.round(h.total / 2) : 0,
+    fechaPagado: accion === 'pagado' && h.fechaPagado ? h.fechaPagado : '',
     plazoEntrega: accion === 'aceptado' && h.fechaEntrega ? fechaCorta(h.fechaEntrega) : '',
     fechaAceptado: accion === 'aceptado' && h.fechaAceptado ? h.fechaAceptado : '',
     estabaAceptado: !!estabaAceptado,
@@ -1523,6 +1545,8 @@ async function avisarSheetsEstado(h, accion, estabaAceptado){
       body: JSON.stringify(payload)
     });
     h.sheetsMsg = accion === 'aceptado' ? 'Pasado a Trabajos con la seña del 50% y agendada la entrega en tu Calendar ✓'
+      : accion === 'pagado' ? 'Marcado como Abonado en tu planilla ✓'
+      : accion === 'nopagado' ? 'Vuelto a la seña del 50% en tu planilla ✓'
       : accion === 'rechazado' ? 'Marcado como no aceptado en tu planilla ✓'
       : 'Actualizado en tu planilla ✓';
   }catch(e){
