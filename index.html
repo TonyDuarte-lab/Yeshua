@@ -451,7 +451,8 @@
       <span class="chevron open" id="chev-sec-pdf">▶</span>
     </div>
     <div class="section-body open" id="body-sec-pdf">
-      <div class="field full"><label>Cliente (opcional)</label><input type="text" id="pdf-cliente" placeholder="Nombre del cliente" oninput="guardarBorrador()"></div>
+      <div class="field full"><label>Cliente</label><input type="text" id="pdf-cliente" placeholder="Nombre del cliente" oninput="guardarBorrador()"></div>
+      <div class="field full"><label>Zona</label><input type="text" id="pdf-zona" placeholder="Ej: Olivos, Pilar" oninput="guardarBorrador()"></div>
       <div class="field full"><label>Email del cliente (opcional)</label><input type="email" id="pdf-email" inputmode="email" autocomplete="off" placeholder="cliente@ejemplo.com" oninput="guardarBorrador()"></div>
       <div class="field full"><label>WhatsApp del cliente (opcional)</label><input type="text" id="pdf-tel" inputmode="tel" autocomplete="off" placeholder="11 2345 6789" oninput="guardarBorrador()"></div>
       <button class="btn-pdf" onclick="generarPDF()">Generar PDF para el cliente</button>
@@ -658,6 +659,7 @@ function guardarBorrador(){
   escribirLS('borrador', {
     frentes, nextId,
     cliente: document.getElementById('pdf-cliente').value,
+    zona: document.getElementById('pdf-zona').value,
     email: document.getElementById('pdf-email').value,
     tel: document.getElementById('pdf-tel').value
   });
@@ -670,6 +672,7 @@ function cargarBorrador(){
   if (!frentes.length) return false;
   nextId = Math.max(b.nextId || 1, ...frentes.map(f => f.id + 1));
   document.getElementById('pdf-cliente').value = b.cliente || '';
+  document.getElementById('pdf-zona').value = b.zona || '';
   document.getElementById('pdf-email').value = b.email || '';
   document.getElementById('pdf-tel').value = b.tel || '';
   render();
@@ -681,6 +684,7 @@ function nuevoPresupuesto(){
   frentes = [];
   nextId = 1;
   document.getElementById('pdf-cliente').value = '';
+  document.getElementById('pdf-zona').value = '';
   document.getElementById('pdf-email').value = '';
   document.getElementById('pdf-tel').value = '';
   document.getElementById('inst-fecha').value = '';
@@ -935,6 +939,15 @@ function tomarNumero(){
 }
 function formatoNumero(n){ return 'N° ' + String(n).padStart(4, '0'); }
 
+// Sin nombre de cliente no se genera el presupuesto (después no se sabe de quién es).
+function faltaCliente(msg){
+  const campo = document.getElementById('pdf-cliente');
+  if (campo.value.trim()) return false;
+  msg.textContent = 'Poné el nombre del cliente antes de generar el presupuesto.';
+  campo.focus();
+  return true;
+}
+
 // modo 'descargar': no abre el menú de compartir, baja el PDF directo.
 // modo 'whatsapp': comparte el PDF junto con el mensaje armado para WhatsApp.
 async function generarPDF(modo){
@@ -943,6 +956,7 @@ async function generarPDF(modo){
     msg.textContent = 'Cargá al menos un frente antes de generar el PDF.';
     return;
   }
+  if (faltaCliente(msg)) return;
   const email = document.getElementById('pdf-email').value.trim();
   const emailValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   if (email && !emailValido){
@@ -1214,6 +1228,7 @@ function enviarWhatsApp(){
     msg.textContent = 'Cargá al menos un frente antes de enviarlo.';
     return;
   }
+  if (faltaCliente(msg)) return;
   // En el celular: se comparte el PDF con el mensaje y se elige WhatsApp
   // en el menú (un link de WhatsApp no puede llevar archivos adjuntos).
   const prueba = new File([''], 'presupuesto.pdf', { type: 'application/pdf' });
@@ -1315,6 +1330,7 @@ async function enviarASheets(cliente, fecha, grandTotal, groups, order, numero){
   const payload = {
     fecha: fecha,
     cliente: cliente || 'Sin nombre',
+    zona: document.getElementById('pdf-zona').value.trim(),
     frente: resumen['frente'] || '',
     bajomesada: resumen['bajomesada'] || '',
     otro: resumen['parrillamodular'] || '',
@@ -1376,6 +1392,7 @@ function registrarEnHistorial(cliente, fecha, total, cantFrentes, numero){
     numero,
     fecha,
     cliente: cliente || 'Sin nombre',
+    zona: document.getElementById('pdf-zona').value.trim(),
     total,
     cantFrentes,
     // Para armar el evento de Calendar si después lo acepta.
@@ -1424,7 +1441,7 @@ function renderHistorial(){
           <div class="hist-entrega">
             Entrega estimada (30 días desde que aceptó):
             <input type="date" value="${h.fechaEntrega || ''}" onchange="cambiarEntrega(${h.id}, this.value)">
-            <button class="btn-sec" onclick="agendarEntrega(${h.id})">Agendar en Google Calendar</button>
+            ${sheetsHabilitado() ? '' : `<button class="btn-sec" onclick="agendarEntrega(${h.id})">Agendar en Google Calendar</button>`}
           </div>` : ''}
           ${h.sheetsMsg ? `<div class="hist-entrega">${h.sheetsMsg}</div>` : ''}
         </div>`;
@@ -1491,7 +1508,12 @@ async function avisarSheetsEstado(h, accion, estabaAceptado){
     adelanto: accion === 'aceptado' ? Math.round(h.total / 2) : 0,
     plazoEntrega: accion === 'aceptado' && h.fechaEntrega ? fechaCorta(h.fechaEntrega) : '',
     fechaAceptado: accion === 'aceptado' && h.fechaAceptado ? h.fechaAceptado : '',
-    estabaAceptado: !!estabaAceptado
+    estabaAceptado: !!estabaAceptado,
+    // Para el evento de la entrega que el script crea en tu Google Calendar.
+    zona: h.zona || '',
+    tel: h.tel || '',
+    email: h.email || '',
+    detalle: [...(h.lineas || []), 'Total: ' + fmt(h.total)].join('\n')
   };
   try{
     await fetch(url, {
@@ -1500,7 +1522,7 @@ async function avisarSheetsEstado(h, accion, estabaAceptado){
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
     });
-    h.sheetsMsg = accion === 'aceptado' ? 'Pasado a Trabajos con la seña del 50% ✓'
+    h.sheetsMsg = accion === 'aceptado' ? 'Pasado a Trabajos con la seña del 50% y agendada la entrega en tu Calendar ✓'
       : accion === 'rechazado' ? 'Marcado como no aceptado en tu planilla ✓'
       : 'Actualizado en tu planilla ✓';
   }catch(e){
@@ -1525,6 +1547,7 @@ function agendarEntrega(id){
   const sig = new Date(dia); sig.setDate(sig.getDate() + 1);
   const ymd = d => isoLocal(d).replace(/-/g, '');
   const contacto = ['Cliente: ' + h.cliente];
+  if (h.zona) contacto.push('Zona: ' + h.zona);
   if (h.tel) contacto.push('WhatsApp: ' + h.tel);
   if (h.email) contacto.push('Email: ' + h.email);
   contacto.push('Presupuesto ' + (h.numero ? formatoNumero(h.numero) + ' ' : '') + 'del ' + h.fecha + (h.fechaAceptado ? ', aceptado el ' + fechaCorta(h.fechaAceptado) : ''));
