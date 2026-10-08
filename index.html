@@ -626,6 +626,10 @@ function num(v){
 function precio(v){
   return parseInt(String(v == null ? '' : v).replace(/[^0-9]/g,''), 10) || 0;
 }
+// Para meter textos escritos a mano dentro del HTML sin que se rompa (comillas, <, &).
+function esc(t){
+  return String(t == null ? '' : t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
 function mostrarNum(n){
   return n ? String(n).replace('.', ',') : '';
 }
@@ -737,9 +741,10 @@ function buildValoresBaseHTML(){
 }
 
 function agregarFrente(template){
+  const n = frentes.filter(f => f.template === template).length + 1;
   frentes.push({
     id: nextId++,
-    desc: TEMPLATES[template].label + ' ' + nextId,
+    desc: TEMPLATES[template].label + ' ' + n,
     template: template,
     ancho: 0, alto: 0,
     bisagras: 0, kit: 0, carbonero: 0, cubiertero: 0,
@@ -854,7 +859,7 @@ function render(){
         <select onchange="cambiarTemplate(${f.id}, this.value)">${templateOptionsHTML(f.template)}</select>
       </div>
       <div class="frente-top">
-        <input type="text" value="${f.desc}" oninput="actualizarFrente(${f.id},'desc',this.value)">
+        <input type="text" value="${esc(f.desc)}" oninput="actualizarFrente(${f.id},'desc',this.value)">
         <button class="btn-del" onclick="eliminarFrente(${f.id})">✕</button>
       </div>
       <div class="medidas-row">${medidasHTML}</div>
@@ -938,6 +943,20 @@ function tomarNumero(){
   if (campo) campo.value = n + 1;
   return n;
 }
+// Si se vuelve a generar el mismo presupuesto sin cambios (por ejemplo, primero
+// el PDF y después por WhatsApp), se reusa el número y no se carga de nuevo en
+// el historial ni en la planilla.
+function firmaPresupuesto(){
+  const campo = id => document.getElementById(id).value.trim();
+  return JSON.stringify([
+    frentes.map(f => [f.template, f.desc, f.ancho, f.alto, f.bisagras, f.kit, f.carbonero, f.cubiertero, f.opcion, Math.round(calcularFrente(f).total)]),
+    campo('pdf-cliente'), campo('pdf-zona'), campo('pdf-email'), campo('pdf-tel')
+  ]);
+}
+function numeroRepetido(){
+  const u = leerLS('ultimo-presupuesto');
+  return u && u.firma === firmaPresupuesto() ? u.numero : 0;
+}
 function formatoNumero(n){ return 'N° ' + String(n).padStart(4, '0'); }
 
 // Sin nombre de cliente no se genera el presupuesto (después no se sabe de quién es).
@@ -979,7 +998,9 @@ async function generarPDF(modo){
     try { doc.addImage(logoDataUrl, 'PNG', marginX, y-6, 18, 18); } catch(e){}
   }
   doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.setTextColor(30,30,30);
-  const numero = tomarNumero();
+  const repetido = numeroRepetido();
+  const numero = repetido || tomarNumero();
+  escribirLS('ultimo-presupuesto', { firma: firmaPresupuesto(), numero });
   doc.text('Presupuesto ' + formatoNumero(numero), marginX+24, y);
   doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(120,120,120);
   const hoy = new Date();
@@ -1159,7 +1180,7 @@ async function generarPDF(modo){
   doc.setFontSize(8.5); doc.setTextColor(120,120,120);
   doc.text(doc.splitTextToSize('Presupuesto válido por ' + DIAS_VALIDEZ + ' días, hasta el ' + venceTexto + '. Pasada esa fecha, el valor podría modificarse.', rightX - marginX), marginX, y);
 
-  const nombreArchivo = 'presupuesto-' + String(numero).padStart(4, '0') + (cliente ? '-'+cliente.replace(/\s+/g,'_') : '') + '.pdf';
+  const nombreArchivo = 'presupuesto-' + String(numero).padStart(4, '0') + (cliente ? '-'+cliente.replace(/[^0-9A-Za-zÁÉÍÓÚÜÑáéíóúüñ-]+/g,'_').replace(/^_+|_+$/g,'') : '') + '.pdf';
   const pdfBlob = doc.output('blob');
   const pdfFile = new File([pdfBlob], nombreArchivo, { type: 'application/pdf' });
 
@@ -1185,6 +1206,8 @@ async function generarPDF(modo){
 
   msg.textContent = compartido ? 'Listo ✓' : 'PDF descargado ✓';
   setTimeout(() => { msg.textContent = ''; }, 2500);
+
+  if (repetido) return;
 
   if (historialHabilitado()){
     registrarEnHistorial(cliente, fecha, grandTotal, frentes.length, numero);
@@ -1217,7 +1240,7 @@ function textoWhatsApp(numero){
     return '• ' + (f.desc || TEMPLATES[f.template].label) + ': ' + fmt(c.total);
   });
   return (cliente ? 'Hola ' + cliente + '! ' : 'Hola! ') +
-    'Te paso el presupuesto ' + formatoNumero(numero || proximoNumero()) + ' de Diseño & Alma:\n\n' +
+    'Te paso el presupuesto ' + formatoNumero(numero || numeroRepetido() || proximoNumero()) + ' de Diseño & Alma:\n\n' +
     lineas.join('\n') + '\n\n*Total: ' + fmt(total) + '*\n\n' +
     'Seña del 50% al iniciar y 50% al finalizar. Válido por ' + DIAS_VALIDEZ + ' días.\n' +
     'Te adjunto el PDF con el detalle. Cualquier consulta, avisame.';
@@ -1453,7 +1476,7 @@ function renderHistorial(){
     }
     item.innerHTML = `
       <div class="info" onclick="toggleHistorial(${h.id})">
-        <div class="cliente">${h.cliente}</div>
+        <div class="cliente">${esc(h.cliente)}</div>
         <div class="meta">${h.numero ? formatoNumero(h.numero) + ' · ' : ''}${h.fecha} · ${h.cantFrentes} ítem(s)</div>
         <span class="hist-estado">${etiqueta}</span>
       </div>
