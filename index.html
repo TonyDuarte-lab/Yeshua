@@ -442,6 +442,7 @@
         <button class="btn-add" onclick="agregarFrente('frente')">+ Frente de parrilla</button>
         <button class="btn-add" onclick="agregarFrente('bajomesada')">+ Bajo mesada</button>
         <button class="btn-add" onclick="agregarFrente('parrillamodular')">+ Parrilla Modular</button>
+        <button class="btn-add" onclick="agregarFrente('alacena')">+ Alacena</button>
       </div>
     </div>
   </div>
@@ -599,6 +600,27 @@ const TEMPLATES = {
       { label:'De 1,31 hasta 1,60 m', valor:1100000 },
       { label:'De 1,61 hasta 2,00 m', valor:1250000 },
     ]
+  },
+  alacena: {
+    label: 'Alacena',
+    specs: [
+      'Estructura en chapa N°18',
+      'Puertas con bisagras de cierre suave',
+      'Terminación con pintura horno'
+    ],
+    perM2: [
+      { key:'valor1', label:'Acero y plegado', def:230000 },
+      { key:'valor2', label:'Pintura', def:120000 },
+    ],
+    perUnit: [
+      { key:'bisagra', label:'Bisagra', def:10000, qty:'bisagras' },
+    ],
+    fixed: [
+      { key:'manoobra', label:'Mano de obra', def:250000 },
+      { key:'instalacion', label:'Instalación', def:100000 },
+      { key:'varios', label:'Varios', def:10000 },
+    ],
+    ganancia: { label:'Ganancia real', defPct:19 }
   }
 };
 
@@ -1056,17 +1078,19 @@ async function generarPDF(modo){
     // "Agrego: ..." — pegado debajo de la tabla, un renglón por cada presupuesto
     // que tenga cajón carbonero y/o cubiertero, con el precio alineado a la derecha.
     // También suma a los contadores de la recomendación consolidada del final.
+    // Sólo los productos que tienen carbonero/cubiertero (la Alacena no).
+    const tiene = k => (t.perUnit || []).some(it => it.key === k);
     groups[tkey].forEach(f => {
       const agregados = [];
-      if ((f.carbonero||0) > 0){
+      if (tiene('carbonero') && (f.carbonero||0) > 0){
         agregados.push({ label:'Agrego: cajón carbonero', val: val('v_'+f.template+'_carbonero') });
-      } else if (!t.opciones){
+      } else if (tiene('carbonero')){
         carboneroFalta = true;
         carboneroPrecio = carboneroPrecio || val('v_'+f.template+'_carbonero');
       }
-      if ((f.cubiertero||0) > 0){
+      if (tiene('cubiertero') && (f.cubiertero||0) > 0){
         agregados.push({ label:'Agrego: cajón cubiertero', val: val('v_'+f.template+'_cubiertero') });
-      } else if (!t.opciones){
+      } else if (tiene('cubiertero')){
         cubierteroFalta = true;
         cubierteroPrecio = cubierteroPrecio || val('v_'+f.template+'_cubiertero');
       }
@@ -1334,7 +1358,9 @@ async function enviarASheets(cliente, fecha, grandTotal, groups, order, numero){
     zona: document.getElementById('pdf-zona').value.trim(),
     frente: resumen['frente'] || '',
     bajomesada: resumen['bajomesada'] || '',
-    otro: resumen['parrillamodular'] || '',
+    // La planilla no tiene columna Alacena: va junto con la parrilla modular
+    // en la columna "Parrilla modular" / "Otro".
+    otro: [resumen['parrillamodular'], resumen['alacena']].filter(Boolean).join('; '),
     presupuesto: grandTotal,
     numero: numero,
     estado: 'Presupuesto enviado'
