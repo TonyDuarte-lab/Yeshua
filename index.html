@@ -486,6 +486,22 @@
     </div>
   </div>
 
+  <div class="section" id="sec-sync">
+    <div class="section-head" onclick="toggleSection('sec-sync')">
+      <h2>Sincronizar con el equipo</h2>
+      <span class="chevron" id="chev-sec-sync">▶</span>
+    </div>
+    <div class="section-body" id="body-sec-sync">
+      <div class="hist-empty" id="sync-estado">No conectado.</div>
+      <div class="field full"><label>Clave del equipo (la misma de la app de trabajos)</label><input type="password" id="sync-clave" autocomplete="current-password" placeholder="Clave"></div>
+      <button class="btn-sec" onclick="syncConectar()">Conectar</button>
+      <button class="btn-sec" onclick="syncAhora()">Sincronizar ahora</button>
+      <button class="btn-sec" onclick="syncSubirPrecios()">Usar los precios de este celular para todos</button>
+      <button class="btn-sec" onclick="syncDesconectar()">Desconectar este celular</button>
+      <div class="pdf-msg" id="sync-msg"></div>
+    </div>
+  </div>
+
   <div class="config-title">Configuración</div>
   <div class="section" id="sec-valores">
     <div class="section-head" onclick="toggleSection('sec-valores')">
@@ -669,6 +685,7 @@ function guardarValoresBase(){
   const valores = {};
   document.querySelectorAll('#valores-container input').forEach(inp => { valores[inp.id] = precio(inp.value); });
   escribirLS('valores-base', valores);
+  syncProgramarPrecios();
 }
 
 function restaurarValoresBase(){
@@ -1001,6 +1018,7 @@ async function generarPDF(modo){
     try { doc.addImage(logoDataUrl, 'PNG', marginX, y-6, 18, 18); } catch(e){}
   }
   doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.setTextColor(30,30,30);
+  if (syncClave()){ try{ await Promise.race([syncPull({ soloNumero:true }), new Promise(r => setTimeout(r, 3000))]); }catch(e){} }
   const numero = tomarNumero();
   doc.text('Presupuesto ' + formatoNumero(numero), marginX+24, y);
   doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(120,120,120);
@@ -1406,7 +1424,9 @@ function cargarHistorial(){
 
 function guardarHistorialArray(){
   try{
+    syncMarcarCambios();
     localStorage.setItem('historial', JSON.stringify(historial));
+    syncProgramarPush();
     return true;
   }catch(e){
     return false;
@@ -1434,7 +1454,8 @@ function registrarEnHistorial(cliente, fecha, total, cantFrentes, numero){
 
 function eliminarHistorialItem(id){
   if (!confirm('¿Borrar este presupuesto del historial?')) return;
-  historial = historial.filter(h => h.id !== id);
+  const hd = historial.find(h => h.id === id);
+  if (hd) hd.deleted = true;
   guardarHistorialArray();
   renderHistorial();
 }
@@ -1445,12 +1466,12 @@ function renderHistorial(){
     cont.innerHTML = '<div class="hist-empty">Activá la opción de arriba para empezar a guardar.</div>';
     return;
   }
-  if (!historial.length){
+  if (!historial.some(h => !h.deleted)){
     cont.innerHTML = '<div class="hist-empty">Todavía no generaste ningún presupuesto.</div>';
     return;
   }
   cont.innerHTML = '';
-  historial.forEach(h => {
+  historial.filter(h => !h.deleted).forEach(h => {
     const estado = h.estado || 'pendiente';
     const item = document.createElement('div');
     item.className = 'hist-item ' + estado;
@@ -1610,12 +1631,137 @@ function agendarEntrega(id){
   window.open(url, '_blank');
 }
 
+
+// ---------- Sincronización con el equipo (Tony y Leo ven y editan lo mismo) ----------
+// El historial, los precios y la numeración viven en el Excel; cada celular los baja al abrir y sube los cambios.
+const SYNC_URL = 'https://script.google.com/macros/s/AKfycbwYpCU2lYRbm9Mq5fC9nO1_VX4zbjNfzE9gpa5spVY31L10GXhmkrm7ZNmpcEhlHtq2GA/exec';
+function syncClave(){ try{ return localStorage.getItem('sync-clave') || ''; }catch(e){ return ''; } }
+function syncMsg(t){ const m = document.getElementById('sync-msg'); if (m) m.textContent = t || ''; }
+function syncEstado(t){ const e = document.getElementById('sync-estado'); if (e) e.textContent = t; }
+async function syncCall(fn, ...args){
+  const r = await fetch(SYNC_URL, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+    body: JSON.stringify({ fn, args:[syncClave(), ...args] }), credentials:'omit', redirect:'follow' });
+  const j = await r.json();
+  if (j.error) throw new Error(j.error);
+  return j.data;
+}
+function histLimpio(h){ const c = Object.assign({}, h); delete c.sheetsMsg; delete c.mod; return JSON.stringify(c); }
+// Anota la hora de cada cambio para saber cuál versión es la más nueva
+function syncMarcarCambios(){
+  const snap = leerLS('hist-snap') || {};
+  historial.forEach(h => {
+    const j = histLimpio(h);
+    if (snap[h.id] !== j){ h.mod = Date.now(); snap[h.id] = j; }
+  });
+  escribirLS('hist-snap', snap);
+}
+let syncTimer = null, syncPreciosTimer = null;
+function syncProgramarPush(){
+  if (!syncClave()) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(syncPush, 1500);
+}
+async function syncPush(){
+  if (!syncClave()) return;
+  const subidos = leerLS('hist-subidos') || {};
+  const nuevos = historial.filter(h => (h.mod || 0) > (subidos[h.id] || 0));
+  if (!nuevos.length) return;
+  try{
+    await syncCall('calcPutHistorial', nuevos.map(h => { const c = Object.assign({}, h); delete c.sheetsMsg; return c; }));
+    nuevos.forEach(h => { subidos[h.id] = h.mod; });
+    escribirLS('hist-subidos', subidos);
+    syncEstado('Conectado ✓ · sincronizado ' + new Date().toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit' }));
+  }catch(e){ syncEstado('Sin conexión con el equipo: se reintenta al volver a abrir.'); }
+}
+function syncProgramarPrecios(){
+  if (!syncClave() || !leerLS('precios-sync')) return;   // solo si ya hay una tabla compartida
+  clearTimeout(syncPreciosTimer);
+  syncPreciosTimer = setTimeout(() => { syncCall('calcSetValores', leerLS('valores-base') || {}).catch(() => {}); }, 2000);
+}
+async function syncPull(opciones){
+  if (!syncClave()) return;
+  const d = await syncCall('calcGetAll');
+  const soloNumero = opciones && opciones.soloNumero;
+  if (!soloNumero){
+    syncMarcarCambios();
+    const mapa = {};
+    historial.forEach(h => { mapa[h.id] = h; });
+    (d.historial || []).forEach(sv => {
+      const loc = mapa[sv.id];
+      if (!loc || (sv.mod || 0) > (loc.mod || 0)){ mapa[sv.id] = sv; }
+    });
+    historial = Object.values(mapa).sort((a, b) => b.id - a.id);
+    const snap = {}, subidos = {};
+    historial.forEach(h => { snap[h.id] = histLimpio(h); });
+    (d.historial || []).forEach(sv => { subidos[sv.id] = sv.mod || 0; });
+    const prev = leerLS('hist-subidos') || {};
+    Object.keys(prev).forEach(k => { if ((prev[k] || 0) > (subidos[k] || 0)) subidos[k] = prev[k]; });
+    escribirLS('hist-snap', snap);
+    escribirLS('hist-subidos', subidos);
+    try{ localStorage.setItem('historial', JSON.stringify(historial)); }catch(e){}
+    renderHistorial();
+    if (d.valores && Object.keys(d.valores).length){
+      escribirLS('valores-base', d.valores);
+      escribirLS('valores-base-version', VERSION_PRECIOS);
+      escribirLS('precios-sync', 1);
+      buildValoresBaseHTML();
+      calcularTotales();
+    }
+  }
+  const maxNum = historial.reduce((m, h) => Math.max(m, parseInt(h.numero, 10) || 0), 0);
+  const prox = Math.max(proximoNumero(), (d.nro || 0), maxNum + 1);
+  try{ localStorage.setItem('nro-proximo', String(prox)); }catch(e){}
+  const campo = document.getElementById('nro-proximo'); if (campo) campo.value = prox;
+  syncEstado('Conectado ✓ · sincronizado ' + new Date().toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit' }));
+  syncPush();
+}
+async function syncConectar(){
+  const c = document.getElementById('sync-clave').value;
+  if (!c){ syncMsg('Ingresá la clave.'); return; }
+  try{ localStorage.setItem('sync-clave', c); }catch(e){}
+  try{
+    await syncCall('login');
+    try{ localStorage.setItem('hist-enabled', '1'); }catch(e){}
+    document.getElementById('hist-enabled').checked = true;
+    await syncPull();
+    syncMsg('Conectado ✓');
+  }catch(e){
+    try{ localStorage.removeItem('sync-clave'); }catch(x){}
+    syncMsg(e.message && e.message !== 'Failed to fetch' ? e.message : 'No se pudo conectar. Revisá internet y la clave.');
+    syncEstado('No conectado.');
+  }
+}
+async function syncAhora(){
+  if (!syncClave()){ syncMsg('Primero conectá con la clave.'); return; }
+  try{ await syncPull(); syncMsg('Listo ✓'); }catch(e){ syncMsg('No se pudo sincronizar: ' + (e.message || 'sin conexión')); }
+}
+async function syncSubirPrecios(){
+  if (!syncClave()){ syncMsg('Primero conectá con la clave.'); return; }
+  if (!confirm('Los precios y costos de ESTE celular van a pasar a ser los de todos (Tony y Leo). ¿Seguro?')) return;
+  try{
+    await syncCall('calcSetValores', leerLS('valores-base') || {});
+    escribirLS('precios-sync', 1);
+    syncMsg('Listo ✓ Estos precios quedaron para todos.');
+  }catch(e){ syncMsg('No se pudo subir: ' + (e.message || 'sin conexión')); }
+}
+function syncDesconectar(){
+  ['sync-clave','precios-sync','hist-subidos','hist-snap'].forEach(k => { try{ localStorage.removeItem(k); }catch(e){} });
+  syncEstado('No conectado.'); syncMsg('Este celular ya no se sincroniza.');
+}
+function syncArrancar(){
+  if (!syncClave()){ return; }
+  syncEstado('Conectando…');
+  syncPull().catch(e => { syncEstado(e.message === 'Clave incorrecta.' ? 'La clave cambió: volvé a conectar.' : 'Sin conexión con el equipo (se usan los datos de este celular).'); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) syncPull().catch(() => {}); });
+}
+
 // ---------- inicio ----------
 buildValoresBaseHTML();
 if (!cargarBorrador()) agregarFrente('frente');
 preloadLogo();
 cargarHistorial();
 cargarConfigSheets();
+syncArrancar();
 document.getElementById('nro-proximo').value = proximoNumero();
 
 if ("serviceWorker" in navigator) {
