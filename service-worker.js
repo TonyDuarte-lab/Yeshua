@@ -1,4 +1,4 @@
-const CACHE_NAME = "frente-parrilla-v9";
+const CACHE_NAME = "frente-parrilla-v10";
 const ASSETS = ["./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png", "./logo.png",
   "./ilustraciones/frente.jpg", "./ilustraciones/bajomesada.jpg", "./ilustraciones/alacena.jpg", "./ilustraciones/parrillamodular.jpg",
   "./ilustraciones/3d/frente-1.jpg", "./ilustraciones/3d/frente-2.jpg",
