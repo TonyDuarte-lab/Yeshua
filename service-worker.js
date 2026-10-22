@@ -1,5 +1,10 @@
-const CACHE_NAME = "frente-parrilla-v7";
-const ASSETS = ["./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png", "./logo.png"];
+const CACHE_NAME = "frente-parrilla-v10";
+const ASSETS = ["./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png", "./logo.png",
+  "./ilustraciones/frente.jpg", "./ilustraciones/bajomesada.jpg", "./ilustraciones/alacena.jpg", "./ilustraciones/parrillamodular.jpg",
+  "./ilustraciones/3d/frente-1.jpg", "./ilustraciones/3d/frente-2.jpg",
+  "./ilustraciones/3d/bajomesada-1.jpg", "./ilustraciones/3d/bajomesada-2.jpg",
+  "./ilustraciones/3d/alacena-1.jpg", "./ilustraciones/3d/alacena-2.jpg",
+  "./ilustraciones/3d/parrillamodular-1.jpg", "./ilustraciones/3d/parrillamodular-2.jpg"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(
