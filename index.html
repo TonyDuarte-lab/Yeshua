@@ -1033,6 +1033,11 @@ function armarPDF3D(numero, cliente){
     doc.setFontSize(9.5); doc.setTextColor(60,60,60);
     doc.text('Así se va a ver tu ' + label.toLowerCase() + '. Te lo mostramos en 3D para que puedas visualizarlo.', marginX, y);
     y += 6;
+    if (tkey !== 'parrillamodular'){
+      doc.setFontSize(7.6); doc.setTextColor(130,130,130);
+      doc.text('En gris: la estructura de obra que lo rodea, no está incluida.', marginX, y - 1.5);
+      y += 3;
+    }
     vista3dData[tkey].forEach(im => {
       const w = 140, h = im.h * w / im.w;
       doc.addImage(im.url, 'JPEG', centro - w/2, y, w, h);
