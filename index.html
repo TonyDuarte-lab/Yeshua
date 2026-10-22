@@ -952,27 +952,99 @@ const ILUSTRACIONES = {
   parrillamodular: 'ilustraciones/parrillamodular.jpg',
 };
 const ilustracionData = {};
+// Vistas 3D de cada producto para el PDF aparte "vista 3D" (dos imágenes por producto).
+const VISTAS_3D = {
+  frente: [
+    { src:'ilustraciones/3d/frente-1.jpg', pie:'Con la guillotina cerrada' },
+    { src:'ilustraciones/3d/frente-2.jpg', pie:'Con la guillotina y las puertas abiertas' },
+  ],
+  bajomesada: [
+    { src:'ilustraciones/3d/bajomesada-1.jpg', pie:'Cerrado' },
+    { src:'ilustraciones/3d/bajomesada-2.jpg', pie:'Con las puertas abiertas' },
+  ],
+  alacena: [
+    { src:'ilustraciones/3d/alacena-1.jpg', pie:'Cerrada' },
+    { src:'ilustraciones/3d/alacena-2.jpg', pie:'Con las puertas abiertas' },
+  ],
+  parrillamodular: [
+    { src:'ilustraciones/3d/parrillamodular-1.jpg', pie:'Parrilla abajo' },
+    { src:'ilustraciones/3d/parrillamodular-2.jpg', pie:'Parrilla subida con el regulador' },
+  ],
+};
+const vista3dData = {};
+async function cargarImagen(src){
+  try{
+    const res = await fetch(src);
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    const url = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+    const img = await new Promise((resolve, reject) => {
+      const im = new Image();
+      im.onload = () => resolve(im);
+      im.onerror = reject;
+      im.src = url;
+    });
+    return { url, w: img.naturalWidth, h: img.naturalHeight };
+  }catch(e){
+    return null;
+  }
+}
 async function preloadIlustraciones(){
   await Promise.all(Object.keys(ILUSTRACIONES).map(async tkey => {
-    try{
-      const res = await fetch(ILUSTRACIONES[tkey]);
-      if (!res.ok) return;
-      const blob = await res.blob();
-      const url = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-      const img = await new Promise((resolve, reject) => {
-        const im = new Image();
-        im.onload = () => resolve(im);
-        im.onerror = reject;
-        im.src = url;
-      });
-      ilustracionData[tkey] = { url, w: img.naturalWidth, h: img.naturalHeight };
-    }catch(e){}
+    const ilu = await cargarImagen(ILUSTRACIONES[tkey]);
+    if (ilu) ilustracionData[tkey] = ilu;
   }));
+  await Promise.all(Object.keys(VISTAS_3D).map(async tkey => {
+    const imgs = await Promise.all(VISTAS_3D[tkey].map(v => cargarImagen(v.src)));
+    const ok = imgs.map((im, i) => im ? Object.assign({ pie: VISTAS_3D[tkey][i].pie }, im) : null).filter(Boolean);
+    if (ok.length) vista3dData[tkey] = ok;
+  }));
+}
+
+// PDF aparte con la vista 3D de cada producto pedido (una hoja por producto).
+// Devuelve null si no hay imágenes para ninguno.
+function armarPDF3D(numero, cliente){
+  const tipos = [];
+  frentes.forEach(f => { if (vista3dData[f.template] && !tipos.includes(f.template)) tipos.push(f.template); });
+  if (!tipos.length) return null;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'a4' });
+  const marginX = 14, rightX = 196, centro = (marginX + rightX) / 2;
+  tipos.forEach((tkey, i) => {
+    if (i > 0) doc.addPage();
+    const label = TEMPLATES[tkey].label;
+    let y = 22;
+    if (logoDataUrl){
+      try { doc.addImage(logoDataUrl, 'PNG', marginX, y-6, 16, 16); } catch(e){}
+    }
+    doc.setFont('helvetica','bold'); doc.setFontSize(16); doc.setTextColor(30,30,30);
+    doc.text('Tu ' + label + ' en 3D', marginX+21, y);
+    doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(120,120,120);
+    doc.text('Presupuesto ' + formatoNumero(numero) + (cliente ? '  ·  ' + cliente : ''), marginX+21, y+5.5);
+    y += 15;
+    doc.setDrawColor(217,118,43); doc.setLineWidth(0.8);
+    doc.line(marginX, y, rightX, y);
+    y += 8;
+    doc.setFontSize(9.5); doc.setTextColor(60,60,60);
+    doc.text('Así se va a ver tu ' + label.toLowerCase() + '. Te lo mostramos en 3D para que puedas visualizarlo.', marginX, y);
+    y += 6;
+    vista3dData[tkey].forEach(im => {
+      const w = 140, h = im.h * w / im.w;
+      doc.addImage(im.url, 'JPEG', centro - w/2, y, w, h);
+      y += h + 4;
+      doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(120,120,120);
+      doc.text(im.pie, centro, y, { align:'center' });
+      y += 7;
+    });
+    doc.setFont('helvetica','italic'); doc.setFontSize(6.8); doc.setTextColor(150,150,150);
+    doc.text('Previsualización ilustrativa: no es el diseño 100% real. El trabajo final se fabrica a la medida acordada y puede tener diferencias de terminación.', centro, 289, { align:'center' });
+  });
+  return doc;
 }
 
 // ---------- Numeración y condiciones del presupuesto ----------
@@ -1236,11 +1308,19 @@ async function generarPDF(modo){
   const pdfBlob = doc.output('blob');
   const pdfFile = new File([pdfBlob], nombreArchivo, { type: 'application/pdf' });
 
+  // PDF aparte con la vista 3D de los productos pedidos.
+  const doc3d = armarPDF3D(numero, cliente);
+  const nombre3d = 'vista-3d-' + String(numero).padStart(4, '0') + (cliente ? '-'+cliente.replace(/\s+/g,'_') : '') + '.pdf';
+  const archivos = [pdfFile];
+  if (doc3d) archivos.push(new File([doc3d.output('blob')], nombre3d, { type: 'application/pdf' }));
+
   let compartido = false;
-  if (modo !== 'descargar' && navigator.canShare && navigator.canShare({ files: [pdfFile] })){
+  let aCompartir = archivos;
+  if (modo !== 'descargar' && navigator.canShare && !navigator.canShare({ files: aCompartir })) aCompartir = [pdfFile];
+  if (modo !== 'descargar' && navigator.canShare && navigator.canShare({ files: aCompartir })){
     try{
       await navigator.share({
-        files: [pdfFile],
+        files: aCompartir,
         title: 'Presupuesto',
         text: modo === 'whatsapp'
           ? textoWhatsApp(numero)
@@ -1254,6 +1334,7 @@ async function generarPDF(modo){
   }
   if (!compartido){
     doc.save(nombreArchivo);
+    if (doc3d) doc3d.save(nombre3d);
   }
 
   msg.textContent = compartido ? 'Listo ✓' : 'PDF descargado ✓';
