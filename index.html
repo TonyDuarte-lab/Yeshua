@@ -944,6 +944,57 @@ async function preloadLogo(){
   }
 }
 
+// ---------- Imagen de la primera hoja (vista previa para WhatsApp) ----------
+// pdf.js se carga una sola vez y en segundo plano, para que al compartir
+// la imagen salga rápido (el celular solo deja compartir unos segundos después del toque).
+let pdfjsListo = null;
+function cargarPdfjs(){
+  if (!pdfjsListo){
+    pdfjsListo = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+      s.onload = () => {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+          'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        resolve(window.pdfjsLib);
+      };
+      s.onerror = () => { pdfjsListo = null; reject(new Error('pdf.js')); };
+      document.head.appendChild(s);
+    });
+  }
+  return pdfjsListo;
+}
+async function imagenPrimeraHoja(pdfBlob, nombre){
+  const armar = (async () => {
+    const pdfjsLib = await cargarPdfjs();
+    const pdf = await pdfjsLib.getDocument({ data: await pdfBlob.arrayBuffer() }).promise;
+    const hoja = await pdf.getPage(1);
+    const vista = hoja.getViewport({ scale: 1200 / hoja.getViewport({ scale: 1 }).width });
+    const canvas = document.createElement('canvas');
+    canvas.width = vista.width; canvas.height = vista.height;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    await hoja.render({ canvasContext: ctx, viewport: vista }).promise;
+    // Se recorta el blanco de abajo para que en el chat se vea más grande.
+    const px = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    let fin = canvas.height;
+    buscar: while (fin > canvas.width){
+      for (let x = 0, i = (fin - 1) * canvas.width * 4; x < canvas.width; x++, i += 4){
+        if (px[i] < 240 || px[i+1] < 240 || px[i+2] < 240) break buscar;
+      }
+      fin--;
+    }
+    const recorte = document.createElement('canvas');
+    recorte.width = canvas.width; recorte.height = Math.min(canvas.height, fin + 60);
+    recorte.getContext('2d').drawImage(canvas, 0, 0);
+    const blob = await new Promise(r => recorte.toBlob(r, 'image/jpeg', 0.85));
+    return blob ? new File([blob], nombre, { type: 'image/jpeg' }) : null;
+  })();
+  // Si tarda o falla, se manda solo el PDF como antes.
+  const limite = new Promise(r => setTimeout(() => r(null), 3000));
+  try{ return await Promise.race([armar, limite]); }catch(e){ return null; }
+}
+
 // ---------- Numeración y condiciones del presupuesto ----------
 const DIAS_VALIDEZ = 10;
 function proximoNumero(){
@@ -1189,10 +1240,17 @@ async function generarPDF(modo){
 
   let compartido = false;
   if (modo !== 'descargar' && navigator.canShare && navigator.canShare({ files: [pdfFile] })){
+    // Para WhatsApp va también una imagen de la primera hoja, así el cliente
+    // ve el presupuesto en el chat (WhatsApp no arma miniatura del PDF compartido).
+    let archivos = [pdfFile];
+    if (modo === 'whatsapp'){
+      const imagen = await imagenPrimeraHoja(pdfBlob, nombreArchivo.replace(/\.pdf$/, '.jpg'));
+      if (imagen && navigator.canShare({ files: [imagen, pdfFile] })) archivos = [imagen, pdfFile];
+    }
     try{
+      // Sin title: algunos celulares lo pegan arriba del texto y el mensaje se ve repetido.
       await navigator.share({
-        files: [pdfFile],
-        title: 'Presupuesto',
+        files: archivos,
         text: modo === 'whatsapp'
           ? textoWhatsApp(numero)
           : (cliente ? ('Presupuesto para ' + cliente) : 'Presupuesto')
@@ -1614,6 +1672,7 @@ function agendarEntrega(id){
 buildValoresBaseHTML();
 if (!cargarBorrador()) agregarFrente('frente');
 preloadLogo();
+if (navigator.canShare) cargarPdfjs().catch(() => {});
 cargarHistorial();
 cargarConfigSheets();
 document.getElementById('nro-proximo').value = proximoNumero();
