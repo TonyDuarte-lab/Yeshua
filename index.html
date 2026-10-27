@@ -132,7 +132,7 @@
   }
   .subgroup-title:first-child { border-top: none; margin-top: 0; padding-top: 0; }
 
-  input[type=text], input[type=email] {
+  input[type=text], input[type=email], textarea {
     background: var(--bg);
     border: 1px solid var(--line);
     color: var(--text);
@@ -142,7 +142,7 @@
     font-size: 16px;
     min-height: 44px;
   }
-  input[type=text]:focus, input[type=email]:focus, select:focus {
+  input[type=text]:focus, input[type=email]:focus, textarea:focus, select:focus {
     outline: none;
     border-color: var(--ember);
   }
@@ -203,7 +203,8 @@
     letter-spacing: 0.03em;
     margin-bottom: 4px;
   }
-  .field input, .field select { width: 100%; }
+  .field input, .field select, .field textarea { width: 100%; }
+  .field textarea { font-family: inherit; resize: vertical; min-height: 70px; }
 
   .frente-total {
     display: flex;
@@ -418,6 +419,34 @@
   .hist-item .cliente { font-size: 0.95rem; color: var(--text); }
   .hist-item .meta { font-size: 0.78rem; color: var(--text-dim); margin-top: 2px; }
   .hist-item .total { font-family: 'Oswald', sans-serif; font-size: 0.95rem; color: var(--ember); white-space: nowrap; }
+  .hist-detalle {
+    margin-top: 12px;
+    padding: 10px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    font-size: 0.84rem;
+    color: var(--text-dim);
+  }
+  .hist-detalle-title {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ember);
+    margin-bottom: 8px;
+  }
+  .hist-det-item { padding: 8px 0; border-top: 1px dashed var(--line); }
+  .hist-det-item:first-of-type { border-top: none; padding-top: 0; }
+  .hist-det-nombre { color: var(--text); font-size: 0.9rem; }
+  .hist-det-nombre small { color: var(--text-dim); font-size: 0.75rem; }
+  .hist-det-medidas { margin: 3px 0 6px; }
+  .hist-det-linea { display: flex; justify-content: space-between; gap: 10px; padding: 1px 0; }
+  .hist-det-linea b { color: var(--text); font-weight: normal; white-space: nowrap; }
+  .hist-det-linea.gan, .hist-det-linea.gan b { color: var(--ok); }
+  .hist-det-linea.tot { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 4px; }
+  .hist-det-linea.tot b { color: var(--ember); }
+  .hist-det-notas { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); color: var(--text); white-space: pre-wrap; }
+  .hist-det-notas span { color: var(--text-dim); }
   .hist-empty { font-size: 0.85rem; color: var(--text-dim); padding: 8px 0; }
 </style>
 </head>
@@ -457,6 +486,7 @@
       <div class="field full"><label>Zona</label><input type="text" id="pdf-zona" placeholder="Ej: Olivos, Pilar" oninput="guardarBorrador()"></div>
       <div class="field full"><label>Email del cliente (opcional)</label><input type="email" id="pdf-email" inputmode="email" autocomplete="off" placeholder="cliente@ejemplo.com" oninput="guardarBorrador()"></div>
       <div class="field full"><label>WhatsApp del cliente (opcional)</label><input type="text" id="pdf-tel" inputmode="tel" autocomplete="off" placeholder="11 2345 6789" oninput="guardarBorrador()"></div>
+      <div class="field full"><label>Notas internas (no salen en el PDF)</label><textarea id="pdf-notas" rows="3" placeholder="Ej: puerta que abra hacia abajo, se le hizo precio especial, pasar a medir el lunes" oninput="guardarBorrador()"></textarea></div>
       <button class="btn-pdf" onclick="generarPDF()">Generar PDF para el cliente</button>
       <button class="btn-wa" onclick="enviarWhatsApp()">Enviar por WhatsApp</button>
       <div class="pdf-msg" id="pdf-msg"></div>
@@ -684,7 +714,8 @@ function guardarBorrador(){
     cliente: document.getElementById('pdf-cliente').value,
     zona: document.getElementById('pdf-zona').value,
     email: document.getElementById('pdf-email').value,
-    tel: document.getElementById('pdf-tel').value
+    tel: document.getElementById('pdf-tel').value,
+    notas: document.getElementById('pdf-notas').value
   });
 }
 
@@ -698,6 +729,7 @@ function cargarBorrador(){
   document.getElementById('pdf-zona').value = b.zona || '';
   document.getElementById('pdf-email').value = b.email || '';
   document.getElementById('pdf-tel').value = b.tel || '';
+  document.getElementById('pdf-notas').value = b.notas || '';
   render();
   return true;
 }
@@ -710,6 +742,7 @@ function nuevoPresupuesto(){
   document.getElementById('pdf-zona').value = '';
   document.getElementById('pdf-email').value = '';
   document.getElementById('pdf-tel').value = '';
+  document.getElementById('pdf-notas').value = '';
   document.getElementById('inst-fecha').value = '';
   document.getElementById('pdf-msg').textContent = '';
   agregarFrente('frente');
@@ -1426,10 +1459,74 @@ function registrarEnHistorial(cliente, fecha, total, cantFrentes, numero){
     tel: document.getElementById('pdf-tel').value.trim(),
     email: document.getElementById('pdf-email').value.trim(),
     lineas: frentes.map(f => '• ' + (f.desc || TEMPLATES[f.template].label) + ': ' + fmt(calcularFrente(f).total)),
+    // Lo que se cotizó y por qué dio ese precio. Sólo para nosotros, no va al PDF.
+    detalle: frentes.map(detalleFrente),
+    notas: document.getElementById('pdf-notas').value.trim(),
     estado: 'pendiente'
   });
   guardarHistorialArray();
   renderHistorial();
+}
+
+// Foto de cada ítem en el momento de mandar el presupuesto: medidas, cantidades
+// y cada costo con el precio unitario que se usó (si después cambian los
+// precios base, el historial sigue mostrando los de ese día).
+function detalleFrente(f){
+  const t = TEMPLATES[f.template] || TEMPLATES.frente;
+  const c = calcularFrente(f);
+  const d = { desc: f.desc || t.label, producto: t.label, total: c.total, ganancia: c.ganancia || 0, datos: [], costos: [] };
+  if (t.opciones){
+    d.datos.push('Medida: ' + c.items[0].label);
+    d.costos.push({ label: 'Precio de esa medida', value: c.total });
+    return d;
+  }
+  const m = n => (Math.round(n * 100) / 100).toString().replace('.', ',');
+  d.datos.push('Medidas: ' + m(f.ancho || 0) + ' × ' + m(f.alto || 0) + ' m (' + m(c.area) + ' m²)');
+  const cant = t.perUnit.map(it => {
+    const q = f[it.qty] || 0;
+    if (it.key === 'carbonero' || it.key === 'cubiertero') return it.label + ': ' + (q ? (q > 1 ? 'sí (' + q + ')' : 'sí') : 'no');
+    return it.label + ': ' + q;
+  });
+  if (cant.length) d.datos.push(cant.join(' · '));
+  let i = 0;
+  t.perM2.forEach(it => {
+    d.costos.push({ label: it.label + ' (' + m(c.area) + ' m² × ' + fmt(val('v_'+f.template+'_'+it.key)) + ')', value: c.items[i++].value });
+  });
+  t.perUnit.forEach(it => {
+    const q = f[it.qty] || 0;
+    const sub = c.items[i++].value;
+    const extra = it.key === 'carbonero' || it.key === 'cubiertero' ? ', sin ganancia' : '';
+    if (q) d.costos.push({ label: it.label + ' (' + m(q) + ' × ' + fmt(val('v_'+f.template+'_'+it.key)) + extra + ')', value: sub });
+  });
+  t.fixed.forEach(it => { d.costos.push({ label: it.label, value: c.items[i++].value }); });
+  if (t.ganancia) d.costos.push({ label: c.items[i].label, value: c.items[i].value, gan: true });
+  return d;
+}
+
+function esc(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]));
+}
+
+function detalleHistorialHTML(h){
+  let html = '<div class="hist-detalle"><div class="hist-detalle-title">Detalle del presupuesto · sólo para ustedes</div>';
+  if (h.detalle && h.detalle.length){
+    h.detalle.forEach(d => {
+      html += `<div class="hist-det-item">
+        <div class="hist-det-nombre">${esc(d.desc)} ${d.desc !== d.producto ? `<small>· ${esc(d.producto)}</small>` : ''}</div>
+        <div class="hist-det-medidas">${d.datos.map(esc).join('<br>')}</div>
+        ${d.costos.map(x => `<div class="hist-det-linea${x.gan ? ' gan' : ''}"><span>${esc(x.label)}</span><b>${fmt(x.value)}</b></div>`).join('')}
+        <div class="hist-det-linea tot"><span>Precio que se le pasó</span><b>${fmt(d.total)}</b></div>
+      </div>`;
+    });
+    const gan = h.detalle.reduce((a, d) => a + (d.ganancia || 0), 0);
+    if (gan) html += `<div class="hist-det-linea gan" style="margin-top:6px"><span>Ganancia real del presupuesto</span><b>${fmt(gan)}</b></div>`;
+  } else {
+    // Presupuestos guardados antes de que existiera el detalle.
+    html += (h.lineas || []).map(esc).join('<br>') + '<br><small>(Presupuesto viejo: sólo se guardó el precio de cada ítem.)</small>';
+  }
+  if (h.notas) html += `<div class="hist-det-notas"><span>Notas:</span> ${esc(h.notas)}</div>`;
+  if (h.zona || h.tel) html += `<div class="hist-det-notas"><span>${[h.zona ? 'Zona: ' + esc(h.zona) : '', h.tel ? 'WhatsApp: ' + esc(h.tel) : ''].filter(Boolean).join(' · ')}</span></div>`;
+  return html + '</div>';
 }
 
 function eliminarHistorialItem(id){
@@ -1456,7 +1553,7 @@ function renderHistorial(){
     item.className = 'hist-item ' + estado;
     const etiqueta = estado === 'aceptado' && h.pagado ? '✓ Abonado' + (h.fechaPagado ? ' el ' + fechaCorta(h.fechaPagado) : '')
       : estado === 'aceptado' ? '✓ Aceptado' + (h.fechaAceptado ? ' el ' + fechaCorta(h.fechaAceptado) : '')
-      : estado === 'rechazado' ? '✗ No aceptado' : 'Pendiente · tocá para marcar';
+      : estado === 'rechazado' ? '✗ No aceptado' : 'Pendiente · tocá para marcar y ver el detalle';
     let panel = '';
     if (histAbiertos.has(h.id)){
       panel = `
@@ -1475,6 +1572,7 @@ function renderHistorial(){
             <button class="${h.pagado ? 'on-ok' : ''}" onclick="marcarPagado(${h.id})">💰 Total pago / Finalizado</button>
           </div>` : ''}
           ${h.sheetsMsg ? `<div class="hist-entrega">${h.sheetsMsg}</div>` : ''}
+          ${detalleHistorialHTML(h)}
         </div>`;
     }
     item.innerHTML = `
