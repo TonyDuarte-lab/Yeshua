@@ -1365,10 +1365,15 @@ function onSheetsToggle(activado){
   try{ localStorage.setItem('sheets-enabled', activado ? '1' : '0'); }catch(e){}
 }
 
+// La planilla de Diseño & Alma: así cualquier celu nuevo queda conectado solo,
+// sin tener que pegar la URL. Si el celu ya tenía una cargada, se respeta.
+const SHEETS_URL_DEFAULT = 'https://script.google.com/macros/s/AKfycbzCLhakUhzY1r64KBjMV6V77fZxubfE0Z-sJyeUVUW-dWF_v6514YQoy1AWjf9MPqzrHg/exec';
+
 function cargarConfigSheets(){
   try{
-    const url = localStorage.getItem('sheets-url') || '';
-    const activado = localStorage.getItem('sheets-enabled') === '1';
+    const guardada = localStorage.getItem('sheets-url') || '';
+    const url = guardada || SHEETS_URL_DEFAULT;
+    const activado = !guardada || localStorage.getItem('sheets-enabled') !== '0';
     document.getElementById('sheets-url').value = url;
     document.getElementById('sheets-enabled').checked = activado;
   }catch(e){}
