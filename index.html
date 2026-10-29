@@ -402,6 +402,9 @@
   .hist-acciones button.on-ok { border-color: var(--ok); color: var(--ok); }
   .hist-acciones button.on-no { border-color: var(--ember); color: var(--ember); }
   .hist-acciones.pago { margin-top: 10px; }
+  .hist-acciones.envolver { flex-wrap: wrap; }
+  .hist-acciones.envolver button { flex: 1 1 40%; }
+  .hist-acciones button.ancho { flex-basis: 100%; }
   .hist-entrega { margin-top: 10px; font-size: 0.85rem; color: var(--text-dim); }
   .hist-entrega input {
     width: 100%;
@@ -1456,15 +1459,22 @@ function renderHistorial(){
     item.className = 'hist-item ' + estado;
     const etiqueta = estado === 'aceptado' && h.pagado ? '✓ Abonado' + (h.fechaPagado ? ' el ' + fechaCorta(h.fechaPagado) : '')
       : estado === 'aceptado' ? '✓ Aceptado' + (h.fechaAceptado ? ' el ' + fechaCorta(h.fechaAceptado) : '')
+        + (h.senaParcial && !h.sena ? ' · falta el monto abonado' : ' · abonó ' + fmt(senaDe(h)))
       : estado === 'rechazado' ? '✗ No aceptado' : 'Pendiente · tocá para marcar';
     let panel = '';
     if (histAbiertos.has(h.id)){
       panel = `
         <div class="hist-panel">
-          <div class="hist-acciones">
-            <button class="${estado === 'aceptado' ? 'on-ok' : ''}" onclick="marcarHistorial(${h.id},'aceptado')">✓ Aceptó presupuesto</button>
-            <button class="${estado === 'rechazado' ? 'on-no' : ''}" onclick="marcarHistorial(${h.id},'rechazado')">✗ No aceptó</button>
+          <div class="hist-acciones envolver">
+            <button class="${estado === 'aceptado' && !h.senaParcial ? 'on-ok' : ''}" onclick="marcarHistorial(${h.id},'aceptado','mitad')">✓ Aceptó y abonó 50%</button>
+            <button class="${estado === 'aceptado' && h.senaParcial ? 'on-ok' : ''}" onclick="marcarHistorial(${h.id},'aceptado','parcial')">✓ Aceptó y abonó una parte</button>
+            <button class="ancho ${estado === 'rechazado' ? 'on-no' : ''}" onclick="marcarHistorial(${h.id},'rechazado')">✗ No aceptó</button>
           </div>
+          ${estado === 'aceptado' && h.senaParcial ? `
+          <div class="hist-entrega">
+            ¿Cuánto abonó? (de ${fmt(h.total)})
+            <input type="text" inputmode="numeric" placeholder="Ej: 500.000" value="${h.sena ? Math.round(h.sena).toLocaleString('es-AR') : ''}" onchange="cambiarSena(${h.id}, this.value)">
+          </div>` : ''}
           ${estado === 'aceptado' ? `
           <div class="hist-entrega">
             Entrega estimada (30 días desde que aceptó):
@@ -1502,34 +1512,56 @@ function toggleHistorial(id){
   renderHistorial();
 }
 
-function marcarHistorial(id, estado){
+// Seña que abonó el cliente: la mitad, o la parte que se cargó a mano.
+// Los presupuestos aceptados antes de esto no tienen h.sena: eran del 50%.
+function senaDe(h){
+  return h.sena != null ? h.sena : Math.round(h.total / 2);
+}
+
+// tipo ('mitad' o 'parcial') solo cuenta para 'aceptado'.
+function marcarHistorial(id, estado, tipo){
   const h = historial.find(x => x.id === id);
   if (!h) return;
   const estabaAceptado = h.estado === 'aceptado';
-  if (h.estado === estado){
+  const parcial = tipo === 'parcial';
+  if (h.estado === estado && (estado !== 'aceptado' || !!h.senaParcial === parcial)){
     h.estado = 'pendiente';   // tocar de nuevo el mismo botón lo desmarca
     h.pagado = false;
   } else {
     if (estado !== 'aceptado') h.pagado = false;
-    h.estado = estado;
     if (estado === 'aceptado'){
-      const hoy = new Date();
-      h.fechaAceptado = isoLocal(hoy);
-      const entrega = new Date(hoy);
-      entrega.setDate(entrega.getDate() + 30);
-      h.fechaEntrega = isoLocal(entrega);
+      if (!estabaAceptado){
+        const hoy = new Date();
+        h.fechaAceptado = isoLocal(hoy);
+        const entrega = new Date(hoy);
+        entrega.setDate(entrega.getDate() + 30);
+        h.fechaEntrega = isoLocal(entrega);
+      }
+      h.senaParcial = parcial;
+      h.sena = parcial ? 0 : Math.round(h.total / 2);   // la parte se carga abajo
     }
+    h.estado = estado;
   }
-  // En la planilla: aceptar = el trabajo pasa a Trabajos con la seña del 50%;
+  // En la planilla: aceptar = el trabajo pasa a Trabajos con la seña que abonó;
   // no aceptó / desmarcar = queda así en Presupuestos (y sale de Trabajos).
   avisarSheetsEstado(h, h.estado, estabaAceptado);
   guardarHistorialArray();
   renderHistorial();
 }
 
+// Monto que abonó cuando aceptó con "abonó una parte".
+function cambiarSena(id, valor){
+  const h = historial.find(x => x.id === id);
+  if (!h || h.estado !== 'aceptado') return;
+  h.sena = precio(valor);
+  guardarHistorialArray();
+  if (!h.pagado) avisarSheetsEstado(h, 'aceptado');
+  renderHistorial();
+}
+
 // Cuando el cliente terminó de pagar: en la planilla queda "Abonado"
 // (Adelanto = total, saldo en 0) con la fecha de hoy como entrega real.
-// Tocarlo de nuevo lo vuelve a la seña del 50%.
+// Tocarlo de nuevo lo vuelve a la seña que había abonado.
 function marcarPagado(id){
   const h = historial.find(x => x.id === id);
   if (!h || h.estado !== 'aceptado') return;
@@ -1545,6 +1577,11 @@ function marcarPagado(id){
 // (o por cliente y monto en los presupuestos viejos sin número).
 async function avisarSheetsEstado(h, accion, estabaAceptado){
   if (!sheetsHabilitado()) return;
+  // Con "abonó una parte" se espera a que esté cargado el monto.
+  if (accion === 'aceptado' && h.senaParcial && !h.sena){
+    h.sheetsMsg = 'Poné cuánto abonó y se pasa a Trabajos en tu planilla';
+    return;
+  }
   const url = document.getElementById('sheets-url').value.trim();
   const payload = {
     accion,
@@ -1552,7 +1589,7 @@ async function avisarSheetsEstado(h, accion, estabaAceptado){
     presupuesto: h.total,
     numero: h.numero || '',
     adelanto: accion === 'pagado' || (accion === 'aceptado' && h.pagado) ? h.total
-      : accion === 'aceptado' || accion === 'nopagado' ? Math.round(h.total / 2) : 0,
+      : accion === 'aceptado' || accion === 'nopagado' ? senaDe(h) : 0,
     fechaPagado: accion === 'pagado' && h.fechaPagado ? h.fechaPagado : '',
     plazoEntrega: accion === 'aceptado' && h.fechaEntrega ? fechaCorta(h.fechaEntrega) : '',
     fechaAceptado: accion === 'aceptado' && h.fechaAceptado ? h.fechaAceptado : '',
@@ -1570,9 +1607,9 @@ async function avisarSheetsEstado(h, accion, estabaAceptado){
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
     });
-    h.sheetsMsg = accion === 'aceptado' ? 'Pasado a Trabajos con la seña del 50% y agendada la entrega en tu Calendar ✓'
+    h.sheetsMsg = accion === 'aceptado' ? 'Pasado a Trabajos con la seña de ' + fmt(senaDe(h)) + ' y agendada la entrega en tu Calendar ✓'
       : accion === 'pagado' ? 'Marcado como Abonado en tu planilla ✓'
-      : accion === 'nopagado' ? 'Vuelto a la seña del 50% en tu planilla ✓'
+      : accion === 'nopagado' ? 'Vuelto a la seña de ' + fmt(senaDe(h)) + ' en tu planilla ✓'
       : accion === 'rechazado' ? 'Marcado como no aceptado en tu planilla ✓'
       : 'Actualizado en tu planilla ✓';
   }catch(e){
