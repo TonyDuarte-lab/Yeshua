@@ -403,6 +403,9 @@
   .hist-acciones button.on-ok { border-color: var(--ok); color: var(--ok); }
   .hist-acciones button.on-no { border-color: var(--ember); color: var(--ember); }
   .hist-acciones.pago { margin-top: 10px; }
+  .sena-fila { display: flex; gap: 8px; align-items: flex-end; }
+  .sena-fila input { flex: 1; }
+  .sena-fila .btn-sec { width: auto; margin: 6px 0 0; padding: 10px 16px; }
   .hist-acciones.envolver { flex-wrap: wrap; }
   .hist-acciones.envolver button { flex: 1 1 40%; }
   .hist-acciones button.ancho { flex-basis: 100%; }
@@ -1570,7 +1573,10 @@ function renderHistorial(){
           ${estado === 'aceptado' && h.senaParcial ? `
           <div class="hist-entrega">
             ¿Cuánto abonó? (de ${fmt(h.total)})
-            <input type="text" inputmode="numeric" placeholder="Ej: 500.000" value="${h.sena ? Math.round(h.sena).toLocaleString('es-AR') : ''}" onchange="cambiarSena(${h.id}, this.value)">
+            <div class="sena-fila">
+              <input type="text" inputmode="numeric" id="sena-${h.id}" placeholder="Ej: 500.000" value="${h.sena ? Math.round(h.sena).toLocaleString('es-AR') : ''}" onchange="cambiarSena(${h.id}, this.value)" onkeydown="if (event.key === 'Enter') this.blur()">
+              <button class="btn-sec" onclick="cambiarSena(${h.id}, document.getElementById('sena-${h.id}').value, true)">Guardar</button>
+            </div>
           </div>` : ''}
           ${estado === 'aceptado' ? `
           <div class="hist-entrega">
@@ -1648,10 +1654,14 @@ function marcarHistorial(id, estado, tipo){
 }
 
 // Monto que abonó cuando aceptó con "abonó una parte".
-function cambiarSena(id, valor){
+// "Guardar" (forzar) lo manda siempre, por si antes falló por falta de internet;
+// salir del casillero lo manda solo si el monto cambió.
+function cambiarSena(id, valor, forzar){
   const h = historial.find(x => x.id === id);
   if (!h || h.estado !== 'aceptado') return;
-  h.sena = precio(valor);
+  const monto = precio(valor);
+  if (!forzar && monto === h.sena) return;
+  h.sena = monto;
   guardarHistorialArray();
   if (!h.pagado) avisarSheetsEstado(h, 'aceptado');
   renderHistorial();
