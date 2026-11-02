@@ -614,7 +614,7 @@ const TEMPLATES = {
     fixed: [
       { key:'manoobra', label:'Mano de obra e instalación', def:180000 },
     ],
-    // Estantes internos: cantidad × ancho × profundidad fija, por m² y sin ganancia.
+    // Estantes internos: ancho de estante (m) × profundidad fija, por m² y sin ganancia.
     estante: { label:'Estante interno', prof:0.65, def:175000 },
     ganancia: { label:'Ganancia real', defPct:19 }
   },
@@ -809,7 +809,7 @@ function agregarFrente(template){
     desc: TEMPLATES[template].label + ' ' + nextId,
     template: template,
     ancho: 0, alto: 0,
-    bisagras: 0, kit: 0, carbonero: 0, cubiertero: 0, estantes: 0,
+    bisagras: 0, kit: 0, carbonero: 0, cubiertero: 0, anchoEstantes: 0,
     opcion: 0
   });
   render();
@@ -871,7 +871,7 @@ function calcularFrente(f){
     total += v;
   });
   if (t.estante){
-    const sub = (f.estantes || 0) * (f.ancho || 0) * t.estante.prof * val('v_'+f.template+'_estante');
+    const sub = (f.anchoEstantes || 0) * t.estante.prof * val('v_'+f.template+'_estante');
     items.push({ label: 'Estantes internos', value: sub });
     total += sub;
     sinGanancia += sub;
@@ -920,7 +920,7 @@ function render(){
         qtyFieldsHTML += `<div class="field"><label>Cant. ${it.label}</label><input type="text" inputmode="numeric" placeholder="0" value="${mostrarNum(f[it.qty])}" oninput="actualizarFrente(${f.id},'${it.qty}',this.value)"></div>`;
       });
       if (t.estante){
-        qtyFieldsHTML += `<div class="field"><label>Cant. estantes internos</label><input type="text" inputmode="numeric" placeholder="0" value="${mostrarNum(f.estantes)}" oninput="actualizarFrente(${f.id},'estantes',this.value)"></div>`;
+        qtyFieldsHTML += `<div class="field"><label>Estantes internos: ancho (m)</label><input type="text" inputmode="decimal" placeholder="0,00" value="${mostrarNum(f.anchoEstantes)}" oninput="actualizarFrente(${f.id},'anchoEstantes',this.value)"></div>`;
       }
       totalInfoHTML = `<span class="label">Área: ${calc.area.toFixed(2).replace('.', ',')} m²</span><span class="val">${fmt(calc.total)}</span>`;
     }
@@ -1148,9 +1148,8 @@ async function generarPDF(modo){
         cubierteroFalta = true;
         cubierteroPrecio = cubierteroPrecio || val('v_'+f.template+'_cubiertero');
       }
-      if (t.estante && (f.estantes||0) > 0){
-        const n = f.estantes;
-        agregados.push({ label:'Agrego: ' + n + (n === 1 ? ' estante interno' : ' estantes internos'), val: calcularFrente(f).items.find(i => i.label === 'Estantes internos').value });
+      if (t.estante && (f.anchoEstantes||0) > 0){
+        agregados.push({ label:'Agrego: estantes internos (' + mostrarNum(f.anchoEstantes) + ' m)', val: calcularFrente(f).items.find(i => i.label === 'Estantes internos').value });
       }
       if (!agregados.length) return;
       if (y > 282){ doc.addPage(); y = 20; }
@@ -1410,7 +1409,7 @@ async function enviarASheets(cliente, fecha, grandTotal, groups, order, numero){
       const c = calcularFrente(f);
       const detalle = TEMPLATES[tkey].opciones
         ? (c.items[0] ? c.items[0].label : '')
-        : c.area.toFixed(2) + ' m²' + (f.estantes ? ', ' + f.estantes + (f.estantes === 1 ? ' estante' : ' estantes') : '');
+        : c.area.toFixed(2) + ' m²' + (f.anchoEstantes ? ', estantes ' + mostrarNum(f.anchoEstantes) + ' m' : '');
       return (f.desc || TEMPLATES[tkey].label) + ' (' + detalle + ')';
     }).join('; ');
   });
@@ -1517,7 +1516,7 @@ function detalleFrente(f){
     if (it.key === 'carbonero' || it.key === 'cubiertero') return it.label + ': ' + (q ? (q > 1 ? 'sí (' + q + ')' : 'sí') : 'no');
     return it.label + ': ' + q;
   });
-  if (t.estante) cant.push('Estantes internos: ' + (f.estantes || 0));
+  if (t.estante) cant.push('Estantes internos: ' + m(f.anchoEstantes || 0) + ' m de ancho');
   if (cant.length) d.datos.push(cant.join(' · '));
   let i = 0;
   t.perM2.forEach(it => {
@@ -1532,8 +1531,8 @@ function detalleFrente(f){
   t.fixed.forEach(it => { d.costos.push({ label: it.label, value: c.items[i++].value }); });
   if (t.estante){
     const sub = c.items[i++].value;
-    const m2 = (f.estantes || 0) * (f.ancho || 0) * t.estante.prof;
-    if (f.estantes) d.costos.push({ label: 'Estantes internos (' + m(f.estantes) + ' × ' + m(f.ancho || 0) + ' × ' + m(t.estante.prof) + ' m = ' + m(m2) + ' m² × ' + fmt(val('v_'+f.template+'_estante')) + ', sin ganancia)', value: sub });
+    const m2 = (f.anchoEstantes || 0) * t.estante.prof;
+    if (f.anchoEstantes) d.costos.push({ label: 'Estantes internos (' + m(f.anchoEstantes) + ' × ' + m(t.estante.prof) + ' m = ' + m(m2) + ' m² × ' + fmt(val('v_'+f.template+'_estante')) + ', sin ganancia)', value: sub });
   }
   if (t.ganancia) d.costos.push({ label: c.items[i].label, value: c.items[i].value, gan: true });
   return d;
