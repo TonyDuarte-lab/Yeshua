@@ -131,6 +131,54 @@
     border-top: 1px dashed var(--line);
   }
   .subgroup-title:first-child { border-top: none; margin-top: 0; padding-top: 0; }
+  .kit-detalle {
+    grid-column: 1 / -1;
+    background: rgba(255,255,255,0.03);
+    border: 1px dashed var(--line);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin: -2px 0 6px;
+  }
+  .kit-detalle-brand {
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+  }
+  .kit-detalle-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--ember);
+    margin: 2px 0 6px;
+  }
+  .kit-detalle table { width: 100%; border-collapse: collapse; font-size: 0.74rem; }
+  .kit-detalle th {
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.66rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-dim);
+    padding: 3px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .kit-detalle td { padding: 3px 0; color: var(--text-dim); }
+  .kit-detalle th:last-child, .kit-detalle td:last-child { text-align: right; white-space: nowrap; }
+  .kit-detalle th:nth-child(2), .kit-detalle td:nth-child(2) { text-align: center; padding: 3px 8px; }
+  .kit-detalle tfoot td {
+    border-top: 1px solid var(--line);
+    font-weight: 700;
+    color: var(--text);
+    padding-top: 5px;
+  }
+  .kit-detalle-actual {
+    margin-top: 8px;
+    font-size: 0.74rem;
+    color: var(--text-dim);
+    display: flex;
+    justify-content: space-between;
+  }
+  .kit-detalle-actual strong { color: var(--ember); }
 
   input[type=text], input[type=email], textarea {
     background: var(--bg);
@@ -579,7 +627,20 @@ const TEMPLATES = {
     ],
     perUnit: [
       { key:'bisagra', label:'Bisagra', def:20000, qty:'bisagras' },
-      { key:'kit', label:'Kit', def:170000, qty:'kit' },
+      { key:'kit', label:'Kit', def:202000, qty:'kit',
+        detalle: {
+          titulo: 'Kit puerta guillotina doble chapa',
+          items: [
+            ['Lana de vidrio', '1', 5000],
+            ['Guía telescópica', '1', 21000],
+            ['Cable de acero', '1', 5000],
+            ['Manijón', '1', 25000],
+            ['Poleas', '2', 35000],
+            ['Granalla', 'Para contrapesos', 92000],
+            ['Contrapesos', '2', 19000],
+          ]
+        }
+      },
       { key:'carbonero', label:'Carbonero', def:250000, qty:'carbonero' },
       { key:'cubiertero', label:'Cubiertero', def:180000, qty:'cubiertero' },
     ],
@@ -665,7 +726,7 @@ const TEMPLATES = {
 
 // Subir este número cuando cambien los precios por defecto de TEMPLATES:
 // así los celulares dejan de usar los precios viejos que tenían guardados.
-const VERSION_PRECIOS = 2;
+const VERSION_PRECIOS = 3;
 
 let frentes = [];
 let nextId = 1;
@@ -781,6 +842,21 @@ function buildValoresBaseHTML(){
     html += `<div class="subgroup-title">Por unidad</div>`;
     t.perUnit.forEach(it => {
       html += `<label>${it.label}</label><input type="text" inputmode="numeric" id="v_${tkey}_${it.key}" value="${it.def}">`;
+      if (it.detalle){
+        // Detalle de materiales del kit: solo se ve en la app, nunca va al PDF.
+        const d = it.detalle;
+        const sumaItems = d.items.reduce((acc, r) => acc + r[2], 0);
+        html += `<div class="kit-detalle">
+          <div class="kit-detalle-brand">Diseño y Alma</div>
+          <div class="kit-detalle-title">${d.titulo}</div>
+          <table>
+            <thead><tr><th>Material</th><th>Cant.</th><th>Costo</th></tr></thead>
+            <tbody>${d.items.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${fmt(r[2])}</td></tr>`).join('')}</tbody>
+            <tfoot><tr><td colspan="2">TOTAL</td><td>${fmt(sumaItems)}</td></tr></tfoot>
+          </table>
+          <div class="kit-detalle-actual">Costo actual del kit por puerta <strong>${fmt(sumaItems)}</strong></div>
+        </div>`;
+      }
     });
     html += `<div class="subgroup-title">Fijos (por frente)</div>`;
     t.fixed.forEach(it => {
