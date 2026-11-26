@@ -1344,14 +1344,11 @@ async function generarPDF(modo){
   doc.line(marginX, y-4, rightX, y-4);
   doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(30,30,30);
   const totalTransf = Math.round(grandTotal * (1 + RECARGO_TRANSF));
-  doc.text('Pagando con transferencia: ' + fmt(totalTransf), rightX, y+3, { align:'right' });
+  doc.text('Total a abonar: ' + fmt(totalTransf), rightX, y+3, { align:'right' });
   y += 8.5;
   doc.setFont('helvetica','bold'); doc.setFontSize(13.5); doc.setTextColor(217,118,43);
-  doc.text('Pagando en efectivo: ' + fmt(grandTotal), rightX, y+3, { align:'right' });
-  y += 6.5;
-  doc.setFont('helvetica','bolditalic'); doc.setFontSize(9.5);
-  doc.text('¡Ahorrás ' + fmt(totalTransf - grandTotal) + ' pagando en efectivo!', rightX, y+3, { align:'right' });
-  y += 10;
+  doc.text('Pagando en efectivo 10% de descuento: ' + fmt(grandTotal), rightX, y+3, { align:'right' });
+  y += 12;
 
   // Condiciones comerciales
   if (y > 250){ doc.addPage(); y = 20; }
@@ -1427,8 +1424,8 @@ function textoWhatsApp(numero){
   });
   return (cliente ? 'Hola ' + cliente + '! ' : 'Hola! ') +
     'Te paso el presupuesto ' + formatoNumero(numero || proximoNumero()) + ' de Diseño & Alma:\n\n' +
-    lineas.join('\n') + '\n\nPagando con transferencia: ' + fmt(Math.round(total * (1 + RECARGO_TRANSF))) + '\n' +
-    '*Pagando en efectivo: ' + fmt(total) + '* (¡ahorrás ' + fmt(Math.round(total * (1 + RECARGO_TRANSF)) - total) + '!)\n\n' +
+    lineas.join('\n') + '\n\nTotal a abonar: ' + fmt(Math.round(total * (1 + RECARGO_TRANSF))) + '\n' +
+    '*Pagando en efectivo 10% de descuento: ' + fmt(total) + '*\n\n' +
     'Seña del 50% al iniciar y 50% al finalizar. Válido por ' + DIAS_VALIDEZ + ' días.\n' +
     'Te adjunto el PDF con el detalle. Cualquier consulta, avisame.';
 }
