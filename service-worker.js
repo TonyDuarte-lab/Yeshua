@@ -1,4 +1,4 @@
-const CACHE_NAME = "frente-parrilla-v17";
+const CACHE_NAME = "frente-parrilla-v18";
 const ASSETS = ["./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png", "./logo.png"];
 
 self.addEventListener("install", (e) => {

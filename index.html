@@ -739,6 +739,8 @@ const VERSION_PRECIOS = 3;
 
 // Recargo por pagar con transferencia (efectivo = precio de la calculadora).
 const RECARGO_TRANSF = 0.12;
+// Descuento por pagar en efectivo, calculado sobre el 'Total a abonar'.
+const DESC_EFECTIVO = 0.10;
 let frentes = [];
 let nextId = 1;
 
@@ -1347,18 +1349,19 @@ async function generarPDF(modo){
   doc.text('Total a abonar: ' + fmt(totalTransf), rightX, y+3, { align:'right' });
   y += 8.5;
   doc.setFont('helvetica','bold'); doc.setFontSize(13.5); doc.setTextColor(217,118,43);
-  doc.text('Pagando en efectivo 10% de descuento: ' + fmt(grandTotal), rightX, y+3, { align:'right' });
+  const totalEfvo = Math.round(totalTransf * (1 - DESC_EFECTIVO));
+  doc.text('Pagando en efectivo 10% de descuento: ' + fmt(totalEfvo), rightX, y+3, { align:'right' });
   y += 12;
 
   // Condiciones comerciales
   if (y > 250){ doc.addPage(); y = 20; }
-  const mitad = Math.round(grandTotal / 2);
+  const mitad = Math.round(totalEfvo / 2);
   const mitadT = Math.round(totalTransf / 2);
   doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(30,30,30);
   doc.text('Forma de pago', marginX, y);
   y += 5.5;
   doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(60,60,60);
-  doc.text('•  Efectivo: seña del 50% al iniciar el trabajo ' + fmt(mitad) + ' y 50% restante al finalizar ' + fmt(grandTotal - mitad), marginX, y); y += 4.8;
+  doc.text('•  Efectivo: seña del 50% al iniciar el trabajo ' + fmt(mitad) + ' y 50% restante al finalizar ' + fmt(totalEfvo - mitad), marginX, y); y += 4.8;
   doc.text('•  Transferencia: seña del 50% al iniciar ' + fmt(mitadT) + ' y 50% restante al finalizar ' + fmt(totalTransf - mitadT), marginX, y); y += 4.8;
   const demora = doc.splitTextToSize('•  Una vez abonado, el trabajo tiene una demora de instalación de 30 días aproximadamente.', rightX - marginX);
   doc.text(demora, marginX, y); y += 4.8 * demora.length + 2.2;
@@ -1425,7 +1428,7 @@ function textoWhatsApp(numero){
   return (cliente ? 'Hola ' + cliente + '! ' : 'Hola! ') +
     'Te paso el presupuesto ' + formatoNumero(numero || proximoNumero()) + ' de Diseño & Alma:\n\n' +
     lineas.join('\n') + '\n\nTotal a abonar: ' + fmt(Math.round(total * (1 + RECARGO_TRANSF))) + '\n' +
-    '*Pagando en efectivo 10% de descuento: ' + fmt(total) + '*\n\n' +
+    '*Pagando en efectivo 10% de descuento: ' + fmt(Math.round(Math.round(total * (1 + RECARGO_TRANSF)) * (1 - DESC_EFECTIVO))) + '*\n\n' +
     'Seña del 50% al iniciar y 50% al finalizar. Válido por ' + DIAS_VALIDEZ + ' días.\n' +
     'Te adjunto el PDF con el detalle. Cualquier consulta, avisame.';
 }
