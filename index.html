@@ -901,7 +901,7 @@ function agregarFrente(template){
     template: template,
     ancho: 0, alto: 0,
     bisagras: 0, kit: 0, carbonero: 0, cubiertero: 0, anchoEstantes: 0,
-    opcion: 0
+    opcion: 0, descuento: 0
   });
   render();
 }
@@ -916,7 +916,7 @@ function eliminarFrente(id){
 function actualizarFrente(id, campo, valor){
   const f = frentes.find(f => f.id === id);
   if (!f) return;
-  f[campo] = campo === 'desc' ? valor : num(valor);
+  f[campo] = campo === 'desc' ? valor : (campo === 'descuento' ? precio(valor) : num(valor));
   calcularTotales();
 }
 
@@ -939,7 +939,19 @@ function alternarSoloBM(id){
   render();
 }
 
+// Aplica el descuento (en $) que se cargó en el ítem: baja el precio y la ganancia.
 function calcularFrente(f){
+  const c = calcularFrenteBase(f);
+  const d = Math.min(Math.max(f.descuento || 0, 0), c.total);
+  if (d > 0){
+    c.items.push({ label: 'Descuento', value: -d });
+    c.total -= d;
+    c.ganancia = (c.ganancia || 0) - d;
+  }
+  return c;
+}
+
+function calcularFrenteBase(f){
   const t = TEMPLATES[f.template] || TEMPLATES.frente;
 
   if (t.opciones){
@@ -1040,6 +1052,7 @@ function render(){
       ${t.fixedSolo ? `<button type="button" class="btn-solo${f.soloBM ? ' on' : ''}" onclick="alternarSoloBM(${f.id})">${f.soloBM ? '✓ Solo bajo mesada (activado)' : 'Solo bajo mesada'}</button>` : ''}
       <div class="medidas-row">${medidasHTML}</div>
       <div class="cant-grid">${qtyFieldsHTML}</div>
+      <div class="medidas-row"><div class="field" style="grid-column:1 / -1;"><label>Descuento ($)</label><input type="text" inputmode="numeric" placeholder="0" value="${mostrarNum(f.descuento)}" oninput="actualizarFrente(${f.id},'descuento',this.value)"></div></div>
       <div class="frente-total">${totalInfoHTML}</div>
       <div class="desglose-toggle" onclick="toggleDesglose(${f.id})" id="desglose-toggle-${f.id}">Ver detalle ▾</div>
       <div class="desglose" id="desglose-${f.id}" style="display:none">${desgloseHTML(calc)}</div>
