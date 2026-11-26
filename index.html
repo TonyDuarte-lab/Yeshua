@@ -737,6 +737,8 @@ const TEMPLATES = {
 // así los celulares dejan de usar los precios viejos que tenían guardados.
 const VERSION_PRECIOS = 3;
 
+// Recargo por pagar con transferencia (efectivo = precio de la calculadora).
+const RECARGO_TRANSF = 0.12;
 let frentes = [];
 let nextId = 1;
 
@@ -1341,18 +1343,23 @@ async function generarPDF(modo){
   doc.setDrawColor(217,118,43); doc.setLineWidth(0.8);
   doc.line(marginX, y-4, rightX, y-4);
   doc.setFont('helvetica','bold'); doc.setFontSize(12.5); doc.setTextColor(30,30,30);
-  doc.text('TOTAL: ' + fmt(grandTotal), rightX, y+3, { align:'right' });
-  y += 13;
+  doc.text('TOTAL EN EFECTIVO: ' + fmt(grandTotal), rightX, y+3, { align:'right' });
+  y += 8.5;
+  const totalTransf = Math.round(grandTotal * (1 + RECARGO_TRANSF));
+  doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor(217,118,43);
+  doc.text('TOTAL POR TRANSFERENCIA (+12%): ' + fmt(totalTransf), rightX, y+3, { align:'right' });
+  y += 12;
 
   // Condiciones comerciales
-  if (y > 262){ doc.addPage(); y = 20; }
+  if (y > 250){ doc.addPage(); y = 20; }
   const mitad = Math.round(grandTotal / 2);
+  const mitadT = Math.round(totalTransf / 2);
   doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(30,30,30);
   doc.text('Forma de pago', marginX, y);
   y += 5.5;
   doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(60,60,60);
-  doc.text('•  Seña del 50% al iniciar el trabajo: ' + fmt(mitad), marginX, y); y += 4.8;
-  doc.text('•  50% restante al finalizar: ' + fmt(grandTotal - mitad), marginX, y); y += 4.8;
+  doc.text('•  Efectivo: seña del 50% al iniciar el trabajo ' + fmt(mitad) + ' y 50% restante al finalizar ' + fmt(grandTotal - mitad), marginX, y); y += 4.8;
+  doc.text('•  Transferencia (+12%): seña del 50% al iniciar ' + fmt(mitadT) + ' y 50% restante al finalizar ' + fmt(totalTransf - mitadT), marginX, y); y += 4.8;
   const demora = doc.splitTextToSize('•  Una vez abonado, el trabajo tiene una demora de instalación de 30 días aproximadamente.', rightX - marginX);
   doc.text(demora, marginX, y); y += 4.8 * demora.length + 2.2;
   doc.setFontSize(8.5); doc.setTextColor(120,120,120);
@@ -1417,7 +1424,8 @@ function textoWhatsApp(numero){
   });
   return (cliente ? 'Hola ' + cliente + '! ' : 'Hola! ') +
     'Te paso el presupuesto ' + formatoNumero(numero || proximoNumero()) + ' de Diseño & Alma:\n\n' +
-    lineas.join('\n') + '\n\n*Total: ' + fmt(total) + '*\n\n' +
+    lineas.join('\n') + '\n\n*Total en efectivo: ' + fmt(total) + '*\n' +
+    '*Total por transferencia (+12%): ' + fmt(Math.round(total * (1 + RECARGO_TRANSF))) + '*\n\n' +
     'Seña del 50% al iniciar y 50% al finalizar. Válido por ' + DIAS_VALIDEZ + ' días.\n' +
     'Te adjunto el PDF con el detalle. Cualquier consulta, avisame.';
 }
